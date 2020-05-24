@@ -1,0 +1,119 @@
+{
+    "compileClasspath": {
+        "com.lihaoyi:pprint_2.13": {
+            "locked": "0.5.9",
+            "requested": "0.5.9"
+        },
+        "com.outr:scribe-slf4j_2.13": {
+            "locked": "2.7.12",
+            "requested": "2.7.12"
+        },
+        "com.outr:scribe_2.13": {
+            "locked": "2.7.12",
+            "requested": "2.7.12"
+        },
+        "com.twitter:finagle-netty4_2.13": {
+            "locked": "20.4.1",
+            "requested": "20.4.1"
+        },
+        "io.monix:monix_2.13": {
+            "locked": "3.1.0",
+            "requested": "3.1.0"
+        },
+        "org.scala-lang:scala-library": {
+            "locked": "2.13.1",
+            "requested": "2.13.1"
+        }
+    },
+    "runtimeClasspath": {
+        "com.lihaoyi:pprint_2.13": {
+            "locked": "0.5.9",
+            "requested": "0.5.9"
+        },
+        "com.outr:scribe-slf4j_2.13": {
+            "locked": "2.7.12",
+            "requested": "2.7.12"
+        },
+        "com.outr:scribe_2.13": {
+            "locked": "2.7.12",
+            "requested": "2.7.12"
+        },
+        "com.twitter:finagle-netty4_2.13": {
+            "locked": "20.4.1",
+            "requested": "20.4.1"
+        },
+        "io.monix:monix_2.13": {
+            "locked": "3.1.0",
+            "requested": "3.1.0"
+        },
+        "org.scala-lang:scala-library": {
+            "locked": "2.13.1",
+            "requested": "2.13.1"
+        }
+    },
+    "testCompileClasspath": {
+        "com.lihaoyi:pprint_2.13": {
+            "locked": "0.5.9",
+            "requested": "0.5.9"
+        },
+        "com.outr:scribe-slf4j_2.13": {
+            "locked": "2.7.12",
+            "requested": "2.7.12"
+        },
+        "com.outr:scribe_2.13": {
+            "locked": "2.7.12",
+            "requested": "2.7.12"
+        },
+        "com.twitter:finagle-netty4_2.13": {
+            "locked": "20.4.1",
+            "requested": "20.4.1"
+        },
+        "io.monix:monix_2.13": {
+            "locked": "3.1.0",
+            "requested": "3.1.0"
+        },
+        "org.scala-lang:scala-library": {
+            "locked": "2.13.2",
+            "requested": "2.13.1"
+        },
+        "org.scalameta:munit_2.13": {
+            "locked": "0.7.5",
+            "requested": "0.7.5"
+        }
+    },
+    "testRuntimeClasspath": {
+        "com.lihaoyi:pprint_2.13": {
+            "locked": "0.5.9",
+            "requested": "0.5.9"
+        },
+        "com.outr:scribe-slf4j_2.13": {
+            "locked": "2.7.12",
+            "requested": "2.7.12"
+        },
+        "com.outr:scribe_2.13": {
+            "locked": "2.7.12",
+            "requested": "2.7.12"
+        },
+        "com.twitter:finagle-netty4_2.13": {
+            "locked": "20.4.1",
+            "requested": "20.4.1"
+        },
+        "io.monix:monix_2.13": {
+            "locked": "3.1.0",
+            "requested": "3.1.0"
+        },
+        "org.scala-lang:scala-library": {
+            "locked": "2.13.2",
+            "requested": "2.13.1"
+        },
+        "org.scalameta:munit_2.13": {
+            "locked": "0.7.5",
+            "requested": "0.7.5"
+        }
+    },
+    "zinc": {
+        "org.scala-sbt:zinc_2.12": {
+            "locked": "1.3.5"
+        }
+    }
+}

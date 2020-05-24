@@ -1,0 +1,83 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+
+    dependencies {
+        classpath 'com.adarshr:gradle-test-logger-plugin:2.0.0'
+        classpath 'ch.epfl.scala:gradle-bloop_2.12:1.4.0-RC1-162-888454e1'
+    }
+}
+
+plugins {
+    id 'scala'
+    id 'nebula.netflixoss' version '8.8.1'
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+    maven {
+        url "https://artifacts.netflix.net/oss-sonatype-staging/"
+    }
+}
+
+apply plugin: 'application'
+apply plugin: 'nebula.netflixoss'
+
+apply plugin: 'java'
+apply plugin: 'scala'
+apply plugin: 'bloop'
+apply plugin: 'com.adarshr.test-logger'
+
+group = 'com.netflix.remoto'
+
+configurations.all {
+    exclude group: 'ch.qos.logback', module: 'logback-classic'
+    exclude group: 'ch.qos.logback', module: 'logback-core'
+    exclude group: 'org.apache.logging.log4j', module: 'log4j-to-slf4j'
+    exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    if (name.startsWith("incrementalScalaAnalysis")) {
+        extendsFrom = []
+    }
+}
+
+tasks.withType(ScalaCompile) {
+    scalaCompileOptions.additionalParameters = [ "-Ywarn-unused:imports", "-language:dynamics" ]
+}
+
+dependencies {
+    implementation 'org.scala-lang:scala-library:2.13.1'
+
+    // Scala dependencies
+    implementation 'io.monix:monix_2.13:3.1.0'
+    implementation 'com.twitter:finagle-netty4_2.13:20.4.1'
+    implementation 'com.outr:scribe_2.13:2.7.12'
+    implementation 'com.outr:scribe-slf4j_2.13:2.7.12'
+    implementation 'com.lihaoyi:pprint_2.13:0.5.9'
+
+    // Test Scala dependencies
+    testImplementation 'org.scalameta:munit_2.13:0.7.5'
+}
+
+applicationName = 'remoto'
+mainClassName = 'remoto.Main'
+
+// Print out full stack traces when tests fail
+tasks.withType(Test) {
+    testLogging {
+        exceptionFormat = 'full'
+    }
+}
+
+testlogger {
+    showStandardStreams true
+}
+
+idea {
+    project {
+        jdkName = '1.8'
+        languageLevel = '8'
+    }
+}
