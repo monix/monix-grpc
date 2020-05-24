@@ -13,6 +13,7 @@ buildscript {
 plugins {
     id 'scala'
     id 'nebula.netflixoss' version '8.8.1'
+    id 'cz.alenkacz.gradle.scalafmt' version '1.14.0'
 }
 
 repositories {

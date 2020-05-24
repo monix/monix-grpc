@@ -1,0 +1,44 @@
+name: Continuous Integration
+on:
+  push:
+    tags:
+      - v1.*
+      - v2.*
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+        jdk: [graalvm@20.0.0, adopt@1.11]
+    name: Test ${{ matrix.os }} -- ${{ matrix.jdk }}
+    steps:
+      - uses: actions/checkout@v1
+        with:
+          submodules: true
+      - uses: olafurpg/setup-scala@v7
+        with:
+          java-version: ${{ matrix.jdk }}
+      - uses: actions/setup-node@v1
+        with:
+          node-version: "10.x"
+      - name: Set up environment
+        run: |
+          curl -Lo coursier https://git.io/coursier-cli && chmod +x coursier && ./coursier --help
+          yarn --help
+          java -version
+        shell: bash
+      - name: Check formatting
+        if: matrix.os != 'windows-latest'
+        run: |
+          ./gradlew checkScalafmtAll
+        shell: bash
+      - name: Compile and test main projects
+        run: |
+          ./gradlew build
+        shell: bash
