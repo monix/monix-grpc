@@ -39,6 +39,7 @@ configurations.all {
     exclude group: 'ch.qos.logback', module: 'logback-core'
     exclude group: 'org.apache.logging.log4j', module: 'log4j-to-slf4j'
     exclude group: 'org.slf4j', module: 'slf4j-log4j12'
+    // Unclear why this is needed, otherwise https://github.com/gradle/gradle/issues/6750
     if (name.startsWith("incrementalScalaAnalysis")) {
         extendsFrom = []
     }

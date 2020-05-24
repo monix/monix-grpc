@@ -1,6 +1,4 @@
-package corazon
-
-import java.nio.file.Path
+package remoto
 
 object Main {
   def main(args: Array[String]): Unit = {
