@@ -34,6 +34,7 @@ jobs:
           java -version
         shell: bash
       - name: Check formatting
+        if: matrix.os != 'windows-latest'
         run: |
           ./gradlew checkScalafmtAll
         shell: bash
