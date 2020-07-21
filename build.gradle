@@ -6,7 +6,7 @@ buildscript {
 
     dependencies {
         classpath 'com.adarshr:gradle-test-logger-plugin:2.0.0'
-        classpath 'ch.epfl.scala:gradle-bloop_2.12:1.4.0-RC1-162-888454e1'
+        classpath 'ch.epfl.scala:gradle-bloop_2.12:1.4.3'
     }
 }
 
@@ -50,17 +50,18 @@ tasks.withType(ScalaCompile) {
 }
 
 dependencies {
-    implementation 'org.scala-lang:scala-library:2.13.1'
+    compile 'org.scala-lang:scala-library:2.13.1'
 
     // Scala dependencies
-    implementation 'io.monix:monix_2.13:3.1.0'
-    implementation 'com.twitter:finagle-netty4_2.13:20.4.1'
-    implementation 'com.outr:scribe_2.13:2.7.12'
-    implementation 'com.outr:scribe-slf4j_2.13:2.7.12'
-    implementation 'com.lihaoyi:pprint_2.13:0.5.9'
+    compile 'io.monix:monix_2.13:3.2.1'
+    //compile 'com.twitter:finagle-core_2.13:20.4.1'
+    //compile 'com.twitter:finagle-http_2.13:20.4.1'
+    compile 'com.outr:scribe_2.13:2.7.12'
+    compile 'com.outr:scribe-slf4j_2.13:2.7.12'
+    compile 'com.lihaoyi:pprint_2.13:0.5.9'
 
     // Test Scala dependencies
-    testImplementation 'org.scalameta:munit_2.13:0.7.5'
+    testCompile 'org.scalameta:munit_2.13:0.7.5'
 }
 
 applicationName = 'remoto'

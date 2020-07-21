@@ -12,13 +12,9 @@
             "locked": "2.7.12",
             "requested": "2.7.12"
         },
-        "com.twitter:finagle-netty4_2.13": {
-            "locked": "20.4.1",
-            "requested": "20.4.1"
-        },
         "io.monix:monix_2.13": {
-            "locked": "3.1.0",
-            "requested": "3.1.0"
+            "locked": "3.2.1",
+            "requested": "3.2.1"
         },
         "org.scala-lang:scala-library": {
             "locked": "2.13.1",
@@ -38,13 +34,9 @@
             "locked": "2.7.12",
             "requested": "2.7.12"
         },
-        "com.twitter:finagle-netty4_2.13": {
-            "locked": "20.4.1",
-            "requested": "20.4.1"
-        },
         "io.monix:monix_2.13": {
-            "locked": "3.1.0",
-            "requested": "3.1.0"
+            "locked": "3.2.1",
+            "requested": "3.2.1"
         },
         "org.scala-lang:scala-library": {
             "locked": "2.13.1",
@@ -64,13 +56,9 @@
             "locked": "2.7.12",
             "requested": "2.7.12"
         },
-        "com.twitter:finagle-netty4_2.13": {
-            "locked": "20.4.1",
-            "requested": "20.4.1"
-        },
         "io.monix:monix_2.13": {
-            "locked": "3.1.0",
-            "requested": "3.1.0"
+            "locked": "3.2.1",
+            "requested": "3.2.1"
         },
         "org.scala-lang:scala-library": {
             "locked": "2.13.2",
@@ -94,13 +82,9 @@
             "locked": "2.7.12",
             "requested": "2.7.12"
         },
-        "com.twitter:finagle-netty4_2.13": {
-            "locked": "20.4.1",
-            "requested": "20.4.1"
-        },
         "io.monix:monix_2.13": {
-            "locked": "3.1.0",
-            "requested": "3.1.0"
+            "locked": "3.2.1",
+            "requested": "3.2.1"
         },
         "org.scala-lang:scala-library": {
             "locked": "2.13.2",
