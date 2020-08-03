@@ -1,0 +1,15 @@
+apply plugin: 'java-library'
+
+tasks.withType(ScalaCompile) {
+    scalaCompileOptions.additionalParameters = [ "-Ywarn-unused:imports", "-language:dynamics" ]
+}
+
+dependencies {
+    compile 'org.scala-lang:scala-library:2.13.3'
+
+    // Scala dependencies
+    compile 'io.monix:monix_2.13:3.2.2'
+
+    // Test Scala dependencies
+    testCompile 'org.scalameta:munit_2.13:0.7.7'
+}

@@ -1,1 +1,3 @@
-rootProject.name = 'remoto'
+rootProject.name = 'monix-grpc'
+include 'grpc-runtime'
+include 'grpc-codegen'
