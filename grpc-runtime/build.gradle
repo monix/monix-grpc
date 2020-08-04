@@ -10,7 +10,7 @@ dependencies {
     // Scala dependencies
     api 'io.monix:monix_2.13:3.2.2'
 
-    api 'netflix.grpc:netflix-grpc-netty:latest.release'
+    api 'netflix.grpc:netflix-grpc-common:latest.release'
 
     api 'com.thesamet.scalapb:scalapb-json4s_2.13:0.10.1'
     api "com.thesamet.scalapb:scalapb-runtime_2.13:0.10.8"
