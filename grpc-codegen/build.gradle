@@ -11,9 +11,7 @@ dependencies {
     compile 'org.scala-lang:scala-library:2.13.3'
 
     // Scala dependencies
-    compile 'io.monix:monix_2.13:3.2.2'
-
-    implementation 'com.thesamet.scalapb:compilerplugin.13:0.10.8'
+    implementation 'com.thesamet.scalapb:compilerplugin_2.13:0.10.8'
 
     // Test Scala dependencies
     testCompile 'org.scalameta:munit_2.13:0.7.7'

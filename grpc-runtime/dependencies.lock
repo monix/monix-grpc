@@ -24,12 +24,6 @@
                 "org.json4s:json4s-jackson_2.13"
             ]
         },
-        "com.github.spotbugs:spotbugs-annotations": {
-            "locked": "3.1.12",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-spectator"
-            ]
-        },
         "com.google.android:annotations": {
             "locked": "4.1.1.4",
             "transitive": [
@@ -46,7 +40,6 @@
         "com.google.code.findbugs:jsr305": {
             "locked": "3.0.2",
             "transitive": [
-                "com.github.spotbugs:spotbugs-annotations",
                 "netflix.io.grpc:grpc-core-nflx",
                 "netflix.io.grpc:grpc-guava-shaded-nflx"
             ]
@@ -73,33 +66,9 @@
                 "netflix.grpc:netflix-grpc-common"
             ]
         },
-        "com.google.inject.extensions:guice-assistedinject": {
-            "locked": "4.1.0",
-            "transitive": [
-                "com.google.inject.extensions:guice-grapher"
-            ]
-        },
-        "com.google.inject.extensions:guice-grapher": {
-            "locked": "4.1.0",
-            "transitive": [
-                "com.netflix.governator:governator-core"
-            ]
-        },
-        "com.google.inject.extensions:guice-multibindings": {
-            "locked": "4.1.0",
-            "transitive": [
-                "com.google.inject.extensions:guice-grapher",
-                "com.netflix.governator:governator-core"
-            ]
-        },
         "com.google.inject:guice": {
-            "locked": "4.1.0",
+            "locked": "4.0",
             "transitive": [
-                "com.google.inject.extensions:guice-assistedinject",
-                "com.google.inject.extensions:guice-grapher",
-                "com.google.inject.extensions:guice-multibindings",
-                "com.netflix.governator:governator-core",
-                "com.netflix.governator:governator-providers",
                 "netflix.grpc:netflix-grpc-netty"
             ]
         },
@@ -138,7 +107,6 @@
             "locked": "0.3.0",
             "transitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-grpc",
-                "com.netflix.concurrency-limits:concurrency-limits-spectator",
                 "netflix.grpc:netflix-grpc-common"
             ]
         },
@@ -148,42 +116,16 @@
                 "netflix.grpc:netflix-grpc-common"
             ]
         },
-        "com.netflix.concurrency-limits:concurrency-limits-spectator": {
-            "locked": "0.3.0",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-spectator"
-            ]
-        },
-        "com.netflix.governator:governator-api": {
-            "locked": "1.17.10",
-            "transitive": [
-                "com.netflix.governator:governator-core"
-            ]
-        },
-        "com.netflix.governator:governator-core": {
-            "locked": "1.17.10",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-transport"
-            ]
-        },
-        "com.netflix.governator:governator-providers": {
-            "locked": "1.17.10",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
-            ]
-        },
         "com.netflix.spectator:spectator-api": {
             "locked": "0.111.0",
             "transitive": [
-                "com.netflix.concurrency-limits:concurrency-limits-spectator",
                 "com.netflix.spectator:spectator-ext-gc",
                 "com.netflix.spectator:spectator-ext-ipc",
                 "com.netflix.spectator:spectator-ext-jvm",
                 "com.netflix.spectator:spectator-nflx-plugin",
                 "com.netflix.spectator:spectator-reg-atlas",
                 "netflix.grpc:netflix-grpc-common",
-                "netflix.grpc:netflix-grpc-netty",
-                "netflix.grpc:netflix-grpc-spectator"
+                "netflix.grpc:netflix-grpc-netty"
             ]
         },
         "com.netflix.spectator:spectator-ext-gc": {
@@ -207,8 +149,7 @@
         "com.netflix.spectator:spectator-nflx-plugin": {
             "locked": "0.111.0",
             "transitive": [
-                "netflix.grpc:netflix-grpc-common",
-                "netflix.grpc:netflix-grpc-spectator"
+                "netflix.grpc:netflix-grpc-common"
             ]
         },
         "com.netflix.spectator:spectator-reg-atlas": {
@@ -218,7 +159,7 @@
             ]
         },
         "com.thesamet.scalapb:lenses_2.13": {
-            "locked": "0.10.7",
+            "locked": "0.10.8",
             "transitive": [
                 "com.thesamet.scalapb:scalapb-runtime_2.13"
             ]
@@ -232,8 +173,8 @@
             "requested": "0.10.1"
         },
         "com.thesamet.scalapb:scalapb-runtime_2.13": {
-            "locked": "0.10.7",
-            "requested": "0.10.7",
+            "locked": "0.10.8",
+            "requested": "0.10.8",
             "transitive": [
                 "com.thesamet.scalapb:scalapb-json4s_2.13",
                 "com.thesamet.scalapb:scalapb-runtime-grpc_2.13"
@@ -297,51 +238,6 @@
             "locked": "3.2.2",
             "requested": "3.2.2"
         },
-        "io.netty:netty-buffer": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-handler",
-                "io.netty:netty-transport"
-            ]
-        },
-        "io.netty:netty-codec": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-handler"
-            ]
-        },
-        "io.netty:netty-common": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-buffer",
-                "io.netty:netty-resolver"
-            ]
-        },
-        "io.netty:netty-handler": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "netflix:netty-handler-jettyalpn"
-            ]
-        },
-        "io.netty:netty-resolver": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-transport"
-            ]
-        },
-        "io.netty:netty-transport": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-codec",
-                "io.netty:netty-handler"
-            ]
-        },
-        "jakarta.annotation:jakarta.annotation-api": {
-            "locked": "1.3.5",
-            "transitive": [
-                "com.netflix.governator:governator-core"
-            ]
-        },
         "javax.annotation:javax.annotation-api": {
             "locked": "1.3.1",
             "transitive": [
@@ -352,9 +248,6 @@
             "locked": "1",
             "transitive": [
                 "com.google.inject:guice",
-                "com.netflix.governator:governator-api",
-                "com.netflix.governator:governator-core",
-                "com.netflix.governator:governator-providers",
                 "netflix.grpc:netflix-grpc-common"
             ]
         },
@@ -366,9 +259,7 @@
                 "netflix.com.google.protobuf:protobuf-java-util-nflx",
                 "netflix.grpc:netflix-grpc-common",
                 "netflix.grpc:netflix-grpc-options-proto-definition",
-                "netflix.grpc:netflix-grpc-spectator",
-                "netflix.io.grpc:grpc-protobuf-nflx",
-                "netflix:metatron-ipc-common"
+                "netflix.io.grpc:grpc-protobuf-nflx"
             ]
         },
         "netflix.com.google.protobuf:protobuf-java-util-nflx": {
@@ -382,26 +273,12 @@
         "netflix.grpc:netflix-grpc-common": {
             "locked": "1.20.12",
             "transitive": [
-                "netflix.grpc:netflix-grpc-netty",
-                "netflix.grpc:netflix-grpc-spectator"
-            ]
-        },
-        "netflix.grpc:netflix-grpc-metatron-netty": {
-            "locked": "1.20.12",
-            "requested": "latest.release"
-        },
-        "netflix.grpc:netflix-grpc-metatron-transport": {
-            "locked": "1.20.12",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
+                "netflix.grpc:netflix-grpc-netty"
             ]
         },
         "netflix.grpc:netflix-grpc-netty": {
             "locked": "1.20.12",
-            "requested": "latest.release",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
-            ]
+            "requested": "latest.release"
         },
         "netflix.grpc:netflix-grpc-options-proto-definition": {
             "locked": "1.20.12",
@@ -409,17 +286,10 @@
                 "netflix.grpc:netflix-grpc-common"
             ]
         },
-        "netflix.grpc:netflix-grpc-spectator": {
-            "locked": "1.20.12",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
-            ]
-        },
         "netflix.io.grpc:grpc-context-nflx": {
             "locked": "1.20.2",
             "transitive": [
                 "netflix.grpc:netflix-grpc-common",
-                "netflix.grpc:netflix-grpc-spectator",
                 "netflix.io.grpc:grpc-core-nflx"
             ]
         },
@@ -428,9 +298,7 @@
             "transitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-grpc",
                 "netflix.grpc:netflix-grpc-common",
-                "netflix.grpc:netflix-grpc-metatron-netty",
                 "netflix.grpc:netflix-grpc-netty",
-                "netflix.grpc:netflix-grpc-spectator",
                 "netflix.io.grpc:grpc-netty-shaded-nflx",
                 "netflix.io.grpc:grpc-protobuf-lite-nflx",
                 "netflix.io.grpc:grpc-protobuf-nflx",
@@ -481,24 +349,6 @@
                 "netflix.io.grpc:grpc-services-nflx"
             ]
         },
-        "netflix:jetty-alpn-provider": {
-            "locked": "8.1.10.v20161026",
-            "transitive": [
-                "netflix:netty-handler-jettyalpn"
-            ]
-        },
-        "netflix:metatron-ipc-common": {
-            "locked": "1.264.0",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
-            ]
-        },
-        "netflix:netty-handler-jettyalpn": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
-            ]
-        },
         "org.checkerframework:checker-qual": {
             "locked": "2.5.2",
             "transitive": [
@@ -511,12 +361,6 @@
             "transitive": [
                 "netflix.io.grpc:grpc-core-nflx",
                 "netflix.io.grpc:grpc-guava-shaded-nflx"
-            ]
-        },
-        "org.eclipse.jetty.alpn:alpn-api": {
-            "locked": "1.1.3.v20160715",
-            "transitive": [
-                "netflix:jetty-alpn-provider"
             ]
         },
         "org.jctools:jctools-core": {
@@ -593,9 +437,7 @@
             "locked": "1.7.30",
             "transitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-core",
-                "com.netflix.governator:governator-core",
-                "netflix.grpc:netflix-grpc-common",
-                "netflix:metatron-ipc-common"
+                "netflix.grpc:netflix-grpc-common"
             ]
         },
         "org.typelevel:cats-core_2.13": {
@@ -653,12 +495,6 @@
                 "org.json4s:json4s-jackson_2.13"
             ]
         },
-        "com.github.spotbugs:spotbugs-annotations": {
-            "locked": "3.1.12",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-spectator"
-            ]
-        },
         "com.google.android:annotations": {
             "locked": "4.1.1.4",
             "transitive": [
@@ -675,7 +511,6 @@
         "com.google.code.findbugs:jsr305": {
             "locked": "3.0.2",
             "transitive": [
-                "com.github.spotbugs:spotbugs-annotations",
                 "netflix.io.grpc:grpc-core-nflx",
                 "netflix.io.grpc:grpc-guava-shaded-nflx"
             ]
@@ -703,34 +538,16 @@
                 "netflix.grpc:netflix-grpc-common"
             ]
         },
-        "com.google.inject.extensions:guice-assistedinject": {
-            "locked": "4.1.0",
-            "transitive": [
-                "com.google.inject.extensions:guice-grapher"
-            ]
-        },
-        "com.google.inject.extensions:guice-grapher": {
-            "locked": "4.1.0",
-            "transitive": [
-                "com.netflix.governator:governator-core"
-            ]
-        },
         "com.google.inject.extensions:guice-multibindings": {
             "locked": "4.1.0",
             "transitive": [
-                "com.google.inject.extensions:guice-grapher",
-                "com.netflix.governator:governator-core",
                 "com.netflix.spectator:spectator-nflx-plugin"
             ]
         },
         "com.google.inject:guice": {
             "locked": "4.1.0",
             "transitive": [
-                "com.google.inject.extensions:guice-assistedinject",
-                "com.google.inject.extensions:guice-grapher",
                 "com.google.inject.extensions:guice-multibindings",
-                "com.netflix.governator:governator-core",
-                "com.netflix.governator:governator-providers",
                 "com.netflix.spectator:spectator-nflx-plugin",
                 "netflix.grpc:netflix-grpc-netty"
             ]
@@ -782,7 +599,6 @@
             "locked": "0.3.0",
             "transitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-grpc",
-                "com.netflix.concurrency-limits:concurrency-limits-spectator",
                 "netflix.grpc:netflix-grpc-common"
             ]
         },
@@ -790,30 +606,6 @@
             "locked": "0.3.0",
             "transitive": [
                 "netflix.grpc:netflix-grpc-common"
-            ]
-        },
-        "com.netflix.concurrency-limits:concurrency-limits-spectator": {
-            "locked": "0.3.0",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-spectator"
-            ]
-        },
-        "com.netflix.governator:governator-api": {
-            "locked": "1.17.10",
-            "transitive": [
-                "com.netflix.governator:governator-core"
-            ]
-        },
-        "com.netflix.governator:governator-core": {
-            "locked": "1.17.10",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-transport"
-            ]
-        },
-        "com.netflix.governator:governator-providers": {
-            "locked": "1.17.10",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
             ]
         },
         "com.netflix.servo:servo-core": {
@@ -825,7 +617,6 @@
         "com.netflix.spectator:spectator-api": {
             "locked": "0.111.0",
             "transitive": [
-                "com.netflix.concurrency-limits:concurrency-limits-spectator",
                 "com.netflix.servo:servo-core",
                 "com.netflix.spectator:spectator-ext-gc",
                 "com.netflix.spectator:spectator-ext-ipc",
@@ -833,8 +624,7 @@
                 "com.netflix.spectator:spectator-nflx-plugin",
                 "com.netflix.spectator:spectator-reg-atlas",
                 "netflix.grpc:netflix-grpc-common",
-                "netflix.grpc:netflix-grpc-netty",
-                "netflix.grpc:netflix-grpc-spectator"
+                "netflix.grpc:netflix-grpc-netty"
             ]
         },
         "com.netflix.spectator:spectator-ext-gc": {
@@ -858,8 +648,7 @@
         "com.netflix.spectator:spectator-nflx-plugin": {
             "locked": "0.111.0",
             "transitive": [
-                "netflix.grpc:netflix-grpc-common",
-                "netflix.grpc:netflix-grpc-spectator"
+                "netflix.grpc:netflix-grpc-common"
             ]
         },
         "com.netflix.spectator:spectator-reg-atlas": {
@@ -869,7 +658,7 @@
             ]
         },
         "com.thesamet.scalapb:lenses_2.13": {
-            "locked": "0.10.7",
+            "locked": "0.10.8",
             "transitive": [
                 "com.thesamet.scalapb:scalapb-runtime_2.13"
             ]
@@ -883,8 +672,8 @@
             "requested": "0.10.1"
         },
         "com.thesamet.scalapb:scalapb-runtime_2.13": {
-            "locked": "0.10.7",
-            "requested": "0.10.7",
+            "locked": "0.10.8",
+            "requested": "0.10.8",
             "transitive": [
                 "com.thesamet.scalapb:scalapb-json4s_2.13",
                 "com.thesamet.scalapb:scalapb-runtime-grpc_2.13"
@@ -954,51 +743,6 @@
             "locked": "3.2.2",
             "requested": "3.2.2"
         },
-        "io.netty:netty-buffer": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-handler",
-                "io.netty:netty-transport"
-            ]
-        },
-        "io.netty:netty-codec": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-handler"
-            ]
-        },
-        "io.netty:netty-common": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-buffer",
-                "io.netty:netty-resolver"
-            ]
-        },
-        "io.netty:netty-handler": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "netflix:netty-handler-jettyalpn"
-            ]
-        },
-        "io.netty:netty-resolver": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-transport"
-            ]
-        },
-        "io.netty:netty-transport": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-codec",
-                "io.netty:netty-handler"
-            ]
-        },
-        "jakarta.annotation:jakarta.annotation-api": {
-            "locked": "1.3.5",
-            "transitive": [
-                "com.netflix.governator:governator-core"
-            ]
-        },
         "javax.annotation:javax.annotation-api": {
             "locked": "1.3.1",
             "transitive": [
@@ -1010,9 +754,6 @@
             "transitive": [
                 "com.google.inject:guice",
                 "com.netflix.archaius:archaius2-api",
-                "com.netflix.governator:governator-api",
-                "com.netflix.governator:governator-core",
-                "com.netflix.governator:governator-providers",
                 "com.netflix.spectator:spectator-nflx-plugin",
                 "com.netflix.spectator:spectator-reg-atlas",
                 "netflix.grpc:netflix-grpc-common"
@@ -1026,9 +767,7 @@
                 "netflix.com.google.protobuf:protobuf-java-util-nflx",
                 "netflix.grpc:netflix-grpc-common",
                 "netflix.grpc:netflix-grpc-options-proto-definition",
-                "netflix.grpc:netflix-grpc-spectator",
-                "netflix.io.grpc:grpc-protobuf-nflx",
-                "netflix:metatron-ipc-common"
+                "netflix.io.grpc:grpc-protobuf-nflx"
             ]
         },
         "netflix.com.google.protobuf:protobuf-java-util-nflx": {
@@ -1042,26 +781,12 @@
         "netflix.grpc:netflix-grpc-common": {
             "locked": "1.20.12",
             "transitive": [
-                "netflix.grpc:netflix-grpc-netty",
-                "netflix.grpc:netflix-grpc-spectator"
-            ]
-        },
-        "netflix.grpc:netflix-grpc-metatron-netty": {
-            "locked": "1.20.12",
-            "requested": "latest.release"
-        },
-        "netflix.grpc:netflix-grpc-metatron-transport": {
-            "locked": "1.20.12",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
+                "netflix.grpc:netflix-grpc-netty"
             ]
         },
         "netflix.grpc:netflix-grpc-netty": {
             "locked": "1.20.12",
-            "requested": "latest.release",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
-            ]
+            "requested": "latest.release"
         },
         "netflix.grpc:netflix-grpc-options-proto-definition": {
             "locked": "1.20.12",
@@ -1069,17 +794,10 @@
                 "netflix.grpc:netflix-grpc-common"
             ]
         },
-        "netflix.grpc:netflix-grpc-spectator": {
-            "locked": "1.20.12",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
-            ]
-        },
         "netflix.io.grpc:grpc-context-nflx": {
             "locked": "1.20.2",
             "transitive": [
                 "netflix.grpc:netflix-grpc-common",
-                "netflix.grpc:netflix-grpc-spectator",
                 "netflix.io.grpc:grpc-core-nflx"
             ]
         },
@@ -1088,9 +806,7 @@
             "transitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-grpc",
                 "netflix.grpc:netflix-grpc-common",
-                "netflix.grpc:netflix-grpc-metatron-netty",
                 "netflix.grpc:netflix-grpc-netty",
-                "netflix.grpc:netflix-grpc-spectator",
                 "netflix.io.grpc:grpc-netty-shaded-nflx",
                 "netflix.io.grpc:grpc-protobuf-lite-nflx",
                 "netflix.io.grpc:grpc-protobuf-nflx",
@@ -1141,24 +857,6 @@
                 "netflix.io.grpc:grpc-services-nflx"
             ]
         },
-        "netflix:jetty-alpn-provider": {
-            "locked": "8.1.10.v20161026",
-            "transitive": [
-                "netflix:netty-handler-jettyalpn"
-            ]
-        },
-        "netflix:metatron-ipc-common": {
-            "locked": "1.264.0",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
-            ]
-        },
-        "netflix:netty-handler-jettyalpn": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
-            ]
-        },
         "org.apache.commons:commons-lang3": {
             "locked": "3.3.2",
             "transitive": [
@@ -1177,12 +875,6 @@
             "transitive": [
                 "netflix.io.grpc:grpc-core-nflx",
                 "netflix.io.grpc:grpc-guava-shaded-nflx"
-            ]
-        },
-        "org.eclipse.jetty.alpn:alpn-api": {
-            "locked": "1.1.3.v20160715",
-            "transitive": [
-                "netflix:jetty-alpn-provider"
             ]
         },
         "org.jctools:jctools-core": {
@@ -1260,7 +952,6 @@
             "transitive": [
                 "com.netflix.archaius:archaius2-core",
                 "com.netflix.concurrency-limits:concurrency-limits-core",
-                "com.netflix.governator:governator-core",
                 "com.netflix.servo:servo-core",
                 "com.netflix.spectator:spectator-api",
                 "com.netflix.spectator:spectator-ext-gc",
@@ -1268,8 +959,7 @@
                 "com.netflix.spectator:spectator-ext-jvm",
                 "com.netflix.spectator:spectator-nflx-plugin",
                 "com.netflix.spectator:spectator-reg-atlas",
-                "netflix.grpc:netflix-grpc-common",
-                "netflix:metatron-ipc-common"
+                "netflix.grpc:netflix-grpc-common"
             ]
         },
         "org.typelevel:cats-core_2.13": {
@@ -1322,12 +1012,6 @@
                 "org.json4s:json4s-jackson_2.13"
             ]
         },
-        "com.github.spotbugs:spotbugs-annotations": {
-            "locked": "3.1.12",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-spectator"
-            ]
-        },
         "com.google.android:annotations": {
             "locked": "4.1.1.4",
             "transitive": [
@@ -1344,7 +1028,6 @@
         "com.google.code.findbugs:jsr305": {
             "locked": "3.0.2",
             "transitive": [
-                "com.github.spotbugs:spotbugs-annotations",
                 "netflix.io.grpc:grpc-core-nflx",
                 "netflix.io.grpc:grpc-guava-shaded-nflx"
             ]
@@ -1371,33 +1054,9 @@
                 "netflix.grpc:netflix-grpc-common"
             ]
         },
-        "com.google.inject.extensions:guice-assistedinject": {
-            "locked": "4.1.0",
-            "transitive": [
-                "com.google.inject.extensions:guice-grapher"
-            ]
-        },
-        "com.google.inject.extensions:guice-grapher": {
-            "locked": "4.1.0",
-            "transitive": [
-                "com.netflix.governator:governator-core"
-            ]
-        },
-        "com.google.inject.extensions:guice-multibindings": {
-            "locked": "4.1.0",
-            "transitive": [
-                "com.google.inject.extensions:guice-grapher",
-                "com.netflix.governator:governator-core"
-            ]
-        },
         "com.google.inject:guice": {
-            "locked": "4.1.0",
+            "locked": "4.0",
             "transitive": [
-                "com.google.inject.extensions:guice-assistedinject",
-                "com.google.inject.extensions:guice-grapher",
-                "com.google.inject.extensions:guice-multibindings",
-                "com.netflix.governator:governator-core",
-                "com.netflix.governator:governator-providers",
                 "netflix.grpc:netflix-grpc-netty"
             ]
         },
@@ -1436,7 +1095,6 @@
             "locked": "0.3.0",
             "transitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-grpc",
-                "com.netflix.concurrency-limits:concurrency-limits-spectator",
                 "netflix.grpc:netflix-grpc-common"
             ]
         },
@@ -1446,42 +1104,16 @@
                 "netflix.grpc:netflix-grpc-common"
             ]
         },
-        "com.netflix.concurrency-limits:concurrency-limits-spectator": {
-            "locked": "0.3.0",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-spectator"
-            ]
-        },
-        "com.netflix.governator:governator-api": {
-            "locked": "1.17.10",
-            "transitive": [
-                "com.netflix.governator:governator-core"
-            ]
-        },
-        "com.netflix.governator:governator-core": {
-            "locked": "1.17.10",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-transport"
-            ]
-        },
-        "com.netflix.governator:governator-providers": {
-            "locked": "1.17.10",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
-            ]
-        },
         "com.netflix.spectator:spectator-api": {
             "locked": "0.111.0",
             "transitive": [
-                "com.netflix.concurrency-limits:concurrency-limits-spectator",
                 "com.netflix.spectator:spectator-ext-gc",
                 "com.netflix.spectator:spectator-ext-ipc",
                 "com.netflix.spectator:spectator-ext-jvm",
                 "com.netflix.spectator:spectator-nflx-plugin",
                 "com.netflix.spectator:spectator-reg-atlas",
                 "netflix.grpc:netflix-grpc-common",
-                "netflix.grpc:netflix-grpc-netty",
-                "netflix.grpc:netflix-grpc-spectator"
+                "netflix.grpc:netflix-grpc-netty"
             ]
         },
         "com.netflix.spectator:spectator-ext-gc": {
@@ -1505,8 +1137,7 @@
         "com.netflix.spectator:spectator-nflx-plugin": {
             "locked": "0.111.0",
             "transitive": [
-                "netflix.grpc:netflix-grpc-common",
-                "netflix.grpc:netflix-grpc-spectator"
+                "netflix.grpc:netflix-grpc-common"
             ]
         },
         "com.netflix.spectator:spectator-reg-atlas": {
@@ -1516,7 +1147,7 @@
             ]
         },
         "com.thesamet.scalapb:lenses_2.13": {
-            "locked": "0.10.7",
+            "locked": "0.10.8",
             "transitive": [
                 "com.thesamet.scalapb:scalapb-runtime_2.13"
             ]
@@ -1530,8 +1161,8 @@
             "requested": "0.10.1"
         },
         "com.thesamet.scalapb:scalapb-runtime_2.13": {
-            "locked": "0.10.7",
-            "requested": "0.10.7",
+            "locked": "0.10.8",
+            "requested": "0.10.8",
             "transitive": [
                 "com.thesamet.scalapb:scalapb-json4s_2.13",
                 "com.thesamet.scalapb:scalapb-runtime-grpc_2.13"
@@ -1595,51 +1226,6 @@
             "locked": "3.2.2",
             "requested": "3.2.2"
         },
-        "io.netty:netty-buffer": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-handler",
-                "io.netty:netty-transport"
-            ]
-        },
-        "io.netty:netty-codec": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-handler"
-            ]
-        },
-        "io.netty:netty-common": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-buffer",
-                "io.netty:netty-resolver"
-            ]
-        },
-        "io.netty:netty-handler": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "netflix:netty-handler-jettyalpn"
-            ]
-        },
-        "io.netty:netty-resolver": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-transport"
-            ]
-        },
-        "io.netty:netty-transport": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-codec",
-                "io.netty:netty-handler"
-            ]
-        },
-        "jakarta.annotation:jakarta.annotation-api": {
-            "locked": "1.3.5",
-            "transitive": [
-                "com.netflix.governator:governator-core"
-            ]
-        },
         "javax.annotation:javax.annotation-api": {
             "locked": "1.3.1",
             "transitive": [
@@ -1650,9 +1236,6 @@
             "locked": "1",
             "transitive": [
                 "com.google.inject:guice",
-                "com.netflix.governator:governator-api",
-                "com.netflix.governator:governator-core",
-                "com.netflix.governator:governator-providers",
                 "netflix.grpc:netflix-grpc-common"
             ]
         },
@@ -1671,9 +1254,7 @@
                 "netflix.com.google.protobuf:protobuf-java-util-nflx",
                 "netflix.grpc:netflix-grpc-common",
                 "netflix.grpc:netflix-grpc-options-proto-definition",
-                "netflix.grpc:netflix-grpc-spectator",
-                "netflix.io.grpc:grpc-protobuf-nflx",
-                "netflix:metatron-ipc-common"
+                "netflix.io.grpc:grpc-protobuf-nflx"
             ]
         },
         "netflix.com.google.protobuf:protobuf-java-util-nflx": {
@@ -1687,26 +1268,12 @@
         "netflix.grpc:netflix-grpc-common": {
             "locked": "1.20.12",
             "transitive": [
-                "netflix.grpc:netflix-grpc-netty",
-                "netflix.grpc:netflix-grpc-spectator"
-            ]
-        },
-        "netflix.grpc:netflix-grpc-metatron-netty": {
-            "locked": "1.20.12",
-            "requested": "latest.release"
-        },
-        "netflix.grpc:netflix-grpc-metatron-transport": {
-            "locked": "1.20.12",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
+                "netflix.grpc:netflix-grpc-netty"
             ]
         },
         "netflix.grpc:netflix-grpc-netty": {
             "locked": "1.20.12",
-            "requested": "latest.release",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
-            ]
+            "requested": "latest.release"
         },
         "netflix.grpc:netflix-grpc-options-proto-definition": {
             "locked": "1.20.12",
@@ -1714,17 +1281,10 @@
                 "netflix.grpc:netflix-grpc-common"
             ]
         },
-        "netflix.grpc:netflix-grpc-spectator": {
-            "locked": "1.20.12",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
-            ]
-        },
         "netflix.io.grpc:grpc-context-nflx": {
             "locked": "1.20.2",
             "transitive": [
                 "netflix.grpc:netflix-grpc-common",
-                "netflix.grpc:netflix-grpc-spectator",
                 "netflix.io.grpc:grpc-core-nflx"
             ]
         },
@@ -1733,9 +1293,7 @@
             "transitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-grpc",
                 "netflix.grpc:netflix-grpc-common",
-                "netflix.grpc:netflix-grpc-metatron-netty",
                 "netflix.grpc:netflix-grpc-netty",
-                "netflix.grpc:netflix-grpc-spectator",
                 "netflix.io.grpc:grpc-netty-shaded-nflx",
                 "netflix.io.grpc:grpc-protobuf-lite-nflx",
                 "netflix.io.grpc:grpc-protobuf-nflx",
@@ -1786,24 +1344,6 @@
                 "netflix.io.grpc:grpc-services-nflx"
             ]
         },
-        "netflix:jetty-alpn-provider": {
-            "locked": "8.1.10.v20161026",
-            "transitive": [
-                "netflix:netty-handler-jettyalpn"
-            ]
-        },
-        "netflix:metatron-ipc-common": {
-            "locked": "1.264.0",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
-            ]
-        },
-        "netflix:netty-handler-jettyalpn": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
-            ]
-        },
         "org.checkerframework:checker-qual": {
             "locked": "2.5.2",
             "transitive": [
@@ -1816,12 +1356,6 @@
             "transitive": [
                 "netflix.io.grpc:grpc-core-nflx",
                 "netflix.io.grpc:grpc-guava-shaded-nflx"
-            ]
-        },
-        "org.eclipse.jetty.alpn:alpn-api": {
-            "locked": "1.1.3.v20160715",
-            "transitive": [
-                "netflix:jetty-alpn-provider"
             ]
         },
         "org.hamcrest:hamcrest-core": {
@@ -1928,9 +1462,7 @@
             "locked": "1.7.30",
             "transitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-core",
-                "com.netflix.governator:governator-core",
-                "netflix.grpc:netflix-grpc-common",
-                "netflix:metatron-ipc-common"
+                "netflix.grpc:netflix-grpc-common"
             ]
         },
         "org.typelevel:cats-core_2.13": {
@@ -1983,12 +1515,6 @@
                 "org.json4s:json4s-jackson_2.13"
             ]
         },
-        "com.github.spotbugs:spotbugs-annotations": {
-            "locked": "3.1.12",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-spectator"
-            ]
-        },
         "com.google.android:annotations": {
             "locked": "4.1.1.4",
             "transitive": [
@@ -2005,7 +1531,6 @@
         "com.google.code.findbugs:jsr305": {
             "locked": "3.0.2",
             "transitive": [
-                "com.github.spotbugs:spotbugs-annotations",
                 "netflix.io.grpc:grpc-core-nflx",
                 "netflix.io.grpc:grpc-guava-shaded-nflx"
             ]
@@ -2033,34 +1558,16 @@
                 "netflix.grpc:netflix-grpc-common"
             ]
         },
-        "com.google.inject.extensions:guice-assistedinject": {
-            "locked": "4.1.0",
-            "transitive": [
-                "com.google.inject.extensions:guice-grapher"
-            ]
-        },
-        "com.google.inject.extensions:guice-grapher": {
-            "locked": "4.1.0",
-            "transitive": [
-                "com.netflix.governator:governator-core"
-            ]
-        },
         "com.google.inject.extensions:guice-multibindings": {
             "locked": "4.1.0",
             "transitive": [
-                "com.google.inject.extensions:guice-grapher",
-                "com.netflix.governator:governator-core",
                 "com.netflix.spectator:spectator-nflx-plugin"
             ]
         },
         "com.google.inject:guice": {
             "locked": "4.1.0",
             "transitive": [
-                "com.google.inject.extensions:guice-assistedinject",
-                "com.google.inject.extensions:guice-grapher",
                 "com.google.inject.extensions:guice-multibindings",
-                "com.netflix.governator:governator-core",
-                "com.netflix.governator:governator-providers",
                 "com.netflix.spectator:spectator-nflx-plugin",
                 "netflix.grpc:netflix-grpc-netty"
             ]
@@ -2112,7 +1619,6 @@
             "locked": "0.3.0",
             "transitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-grpc",
-                "com.netflix.concurrency-limits:concurrency-limits-spectator",
                 "netflix.grpc:netflix-grpc-common"
             ]
         },
@@ -2120,30 +1626,6 @@
             "locked": "0.3.0",
             "transitive": [
                 "netflix.grpc:netflix-grpc-common"
-            ]
-        },
-        "com.netflix.concurrency-limits:concurrency-limits-spectator": {
-            "locked": "0.3.0",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-spectator"
-            ]
-        },
-        "com.netflix.governator:governator-api": {
-            "locked": "1.17.10",
-            "transitive": [
-                "com.netflix.governator:governator-core"
-            ]
-        },
-        "com.netflix.governator:governator-core": {
-            "locked": "1.17.10",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-transport"
-            ]
-        },
-        "com.netflix.governator:governator-providers": {
-            "locked": "1.17.10",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
             ]
         },
         "com.netflix.servo:servo-core": {
@@ -2155,7 +1637,6 @@
         "com.netflix.spectator:spectator-api": {
             "locked": "0.111.0",
             "transitive": [
-                "com.netflix.concurrency-limits:concurrency-limits-spectator",
                 "com.netflix.servo:servo-core",
                 "com.netflix.spectator:spectator-ext-gc",
                 "com.netflix.spectator:spectator-ext-ipc",
@@ -2163,8 +1644,7 @@
                 "com.netflix.spectator:spectator-nflx-plugin",
                 "com.netflix.spectator:spectator-reg-atlas",
                 "netflix.grpc:netflix-grpc-common",
-                "netflix.grpc:netflix-grpc-netty",
-                "netflix.grpc:netflix-grpc-spectator"
+                "netflix.grpc:netflix-grpc-netty"
             ]
         },
         "com.netflix.spectator:spectator-ext-gc": {
@@ -2188,8 +1668,7 @@
         "com.netflix.spectator:spectator-nflx-plugin": {
             "locked": "0.111.0",
             "transitive": [
-                "netflix.grpc:netflix-grpc-common",
-                "netflix.grpc:netflix-grpc-spectator"
+                "netflix.grpc:netflix-grpc-common"
             ]
         },
         "com.netflix.spectator:spectator-reg-atlas": {
@@ -2199,7 +1678,7 @@
             ]
         },
         "com.thesamet.scalapb:lenses_2.13": {
-            "locked": "0.10.7",
+            "locked": "0.10.8",
             "transitive": [
                 "com.thesamet.scalapb:scalapb-runtime_2.13"
             ]
@@ -2213,8 +1692,8 @@
             "requested": "0.10.1"
         },
         "com.thesamet.scalapb:scalapb-runtime_2.13": {
-            "locked": "0.10.7",
-            "requested": "0.10.7",
+            "locked": "0.10.8",
+            "requested": "0.10.8",
             "transitive": [
                 "com.thesamet.scalapb:scalapb-json4s_2.13",
                 "com.thesamet.scalapb:scalapb-runtime-grpc_2.13"
@@ -2284,51 +1763,6 @@
             "locked": "3.2.2",
             "requested": "3.2.2"
         },
-        "io.netty:netty-buffer": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-handler",
-                "io.netty:netty-transport"
-            ]
-        },
-        "io.netty:netty-codec": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-handler"
-            ]
-        },
-        "io.netty:netty-common": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-buffer",
-                "io.netty:netty-resolver"
-            ]
-        },
-        "io.netty:netty-handler": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "netflix:netty-handler-jettyalpn"
-            ]
-        },
-        "io.netty:netty-resolver": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-transport"
-            ]
-        },
-        "io.netty:netty-transport": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "io.netty:netty-codec",
-                "io.netty:netty-handler"
-            ]
-        },
-        "jakarta.annotation:jakarta.annotation-api": {
-            "locked": "1.3.5",
-            "transitive": [
-                "com.netflix.governator:governator-core"
-            ]
-        },
         "javax.annotation:javax.annotation-api": {
             "locked": "1.3.1",
             "transitive": [
@@ -2340,9 +1774,6 @@
             "transitive": [
                 "com.google.inject:guice",
                 "com.netflix.archaius:archaius2-api",
-                "com.netflix.governator:governator-api",
-                "com.netflix.governator:governator-core",
-                "com.netflix.governator:governator-providers",
                 "com.netflix.spectator:spectator-nflx-plugin",
                 "com.netflix.spectator:spectator-reg-atlas",
                 "netflix.grpc:netflix-grpc-common"
@@ -2363,9 +1794,7 @@
                 "netflix.com.google.protobuf:protobuf-java-util-nflx",
                 "netflix.grpc:netflix-grpc-common",
                 "netflix.grpc:netflix-grpc-options-proto-definition",
-                "netflix.grpc:netflix-grpc-spectator",
-                "netflix.io.grpc:grpc-protobuf-nflx",
-                "netflix:metatron-ipc-common"
+                "netflix.io.grpc:grpc-protobuf-nflx"
             ]
         },
         "netflix.com.google.protobuf:protobuf-java-util-nflx": {
@@ -2379,26 +1808,12 @@
         "netflix.grpc:netflix-grpc-common": {
             "locked": "1.20.12",
             "transitive": [
-                "netflix.grpc:netflix-grpc-netty",
-                "netflix.grpc:netflix-grpc-spectator"
-            ]
-        },
-        "netflix.grpc:netflix-grpc-metatron-netty": {
-            "locked": "1.20.12",
-            "requested": "latest.release"
-        },
-        "netflix.grpc:netflix-grpc-metatron-transport": {
-            "locked": "1.20.12",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
+                "netflix.grpc:netflix-grpc-netty"
             ]
         },
         "netflix.grpc:netflix-grpc-netty": {
             "locked": "1.20.12",
-            "requested": "latest.release",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
-            ]
+            "requested": "latest.release"
         },
         "netflix.grpc:netflix-grpc-options-proto-definition": {
             "locked": "1.20.12",
@@ -2406,17 +1821,10 @@
                 "netflix.grpc:netflix-grpc-common"
             ]
         },
-        "netflix.grpc:netflix-grpc-spectator": {
-            "locked": "1.20.12",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
-            ]
-        },
         "netflix.io.grpc:grpc-context-nflx": {
             "locked": "1.20.2",
             "transitive": [
                 "netflix.grpc:netflix-grpc-common",
-                "netflix.grpc:netflix-grpc-spectator",
                 "netflix.io.grpc:grpc-core-nflx"
             ]
         },
@@ -2425,9 +1833,7 @@
             "transitive": [
                 "com.netflix.concurrency-limits:concurrency-limits-grpc",
                 "netflix.grpc:netflix-grpc-common",
-                "netflix.grpc:netflix-grpc-metatron-netty",
                 "netflix.grpc:netflix-grpc-netty",
-                "netflix.grpc:netflix-grpc-spectator",
                 "netflix.io.grpc:grpc-netty-shaded-nflx",
                 "netflix.io.grpc:grpc-protobuf-lite-nflx",
                 "netflix.io.grpc:grpc-protobuf-nflx",
@@ -2478,24 +1884,6 @@
                 "netflix.io.grpc:grpc-services-nflx"
             ]
         },
-        "netflix:jetty-alpn-provider": {
-            "locked": "8.1.10.v20161026",
-            "transitive": [
-                "netflix:netty-handler-jettyalpn"
-            ]
-        },
-        "netflix:metatron-ipc-common": {
-            "locked": "1.264.0",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
-            ]
-        },
-        "netflix:netty-handler-jettyalpn": {
-            "locked": "4.1.17.Final",
-            "transitive": [
-                "netflix.grpc:netflix-grpc-metatron-netty"
-            ]
-        },
         "org.apache.commons:commons-lang3": {
             "locked": "3.3.2",
             "transitive": [
@@ -2514,12 +1902,6 @@
             "transitive": [
                 "netflix.io.grpc:grpc-core-nflx",
                 "netflix.io.grpc:grpc-guava-shaded-nflx"
-            ]
-        },
-        "org.eclipse.jetty.alpn:alpn-api": {
-            "locked": "1.1.3.v20160715",
-            "transitive": [
-                "netflix:jetty-alpn-provider"
             ]
         },
         "org.hamcrest:hamcrest-core": {
@@ -2627,7 +2009,6 @@
             "transitive": [
                 "com.netflix.archaius:archaius2-core",
                 "com.netflix.concurrency-limits:concurrency-limits-core",
-                "com.netflix.governator:governator-core",
                 "com.netflix.servo:servo-core",
                 "com.netflix.spectator:spectator-api",
                 "com.netflix.spectator:spectator-ext-gc",
@@ -2635,8 +2016,7 @@
                 "com.netflix.spectator:spectator-ext-jvm",
                 "com.netflix.spectator:spectator-nflx-plugin",
                 "com.netflix.spectator:spectator-reg-atlas",
-                "netflix.grpc:netflix-grpc-common",
-                "netflix:metatron-ipc-common"
+                "netflix.grpc:netflix-grpc-common"
             ]
         },
         "org.typelevel:cats-core_2.13": {
