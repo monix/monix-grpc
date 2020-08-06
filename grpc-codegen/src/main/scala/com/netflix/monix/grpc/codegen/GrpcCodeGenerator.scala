@@ -1,30 +1,47 @@
 package com.netflix.monix.grpc.codegen
 
-import protocbridge.ProtocCodeGenerator
-
 import scalapb.options.compiler.Scalapb
+import scalapb.compiler.ProtobufGenerator
 import scalapb.compiler.DescriptorImplicits
 import scalapb.compiler.FunctionalPrinter
-import scalapb.compiler.GeneratorException
-import scalapb.compiler.GeneratorParams
 
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Descriptors.FileDescriptor
-import com.google.protobuf.compiler.PluginProtos.{CodeGeneratorRequest, CodeGeneratorResponse}
+import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse
 
 import scala.jdk.CollectionConverters.ListHasAsScala
-import scala.jdk.CollectionConverters.BufferHasAsJava
+
+import protocgen.CodeGenApp
+import protocbridge.Artifact
+import protocgen.CodeGenRequest
+import protocgen.CodeGenResponse
 
 case class CodeGenParams(serviceSuffix: String = "GrpcService")
 
-object GrpcCodeGenerator extends ProtocCodeGenerator {
-
-  override def run(req: Array[Byte]): Array[Byte] = {
-    println("Running monix grpc service code generator...")
-    val registry = ExtensionRegistry.newInstance()
+object GrpcCodeGenerator extends CodeGenApp {
+  override def registerExtensions(registry: ExtensionRegistry): Unit =
     Scalapb.registerAllExtensions(registry)
-    val request = CodeGeneratorRequest.parseFrom(req, registry)
-    generateCodeFrom(request).toByteArray
+
+  override def suggestedDependencies: Seq[Artifact] = Seq(
+    Artifact("com.netflix.monix.grpc", "grpc-runtime", currentVersion, crossVersion = false)
+  )
+
+  override def process(request: CodeGenRequest): CodeGenResponse = {
+    println(s"request param ${request.parameter}")
+    println(s"request files ot generate ${request.filesToGenerate}")
+    ProtobufGenerator.parseParameters(request.parameter) match {
+      case Right(params) =>
+        val codeGenParams = CodeGenParams()
+        val implicits = new DescriptorImplicits(params, request.allProtos)
+        val filesWithServices = request.filesToGenerate.collect {
+          case file if !file.getServices().isEmpty() => file
+        }
+
+        val generated = filesWithServices.flatMap(generateServiceFiles(_, codeGenParams, implicits))
+        CodeGenResponse.succeed(generated)
+
+      case Left(error) => CodeGenResponse.fail(error)
+    }
   }
 
   def generateServiceFiles(
@@ -40,12 +57,17 @@ object GrpcCodeGenerator extends ProtocCodeGenerator {
       val fileName = s"${file.scalaDirectory}/${service.name}${params.serviceSuffix}.scala"
       println(s"Writing generated service file to $fileName")
 
-      CodeGeneratorResponse.File
-        .newBuilder()
-        .setName(fileName)
-        .setContent(code)
-        .build()
+      CodeGeneratorResponse.File.newBuilder().setName(fileName).setContent(code).build()
     }.toList
+  }
+
+  /*
+  override def run(req: Array[Byte]): Array[Byte] = {
+    println("Running monix grpc service code generator...")
+    val registry = ExtensionRegistry.newInstance()
+    Scalapb.registerAllExtensions(registry)
+    val request = CodeGeneratorRequest.parseFrom(req, registry)
+    generateCodeFrom(request).toByteArray
   }
 
   def generateCodeFrom(request: CodeGeneratorRequest): CodeGeneratorResponse = {
@@ -90,5 +112,18 @@ object GrpcCodeGenerator extends ProtocCodeGenerator {
           case (Left(e), _) => Left(e)
         }
     } yield (params, suffix)
+  }
+   */
+
+  private lazy val currentVersion: String = {
+    val props = new java.util.Properties()
+    val is = getClass.getResourceAsStream("/version.properties")
+    if (is == null) "0.0.0-UNRELEASED"
+    else {
+      props.load(is)
+      Option(props.getProperty("version"))
+        .filter(_ != "unspecified")
+        .getOrElse("0.0.0-UNRELEASED")
+    }
   }
 }

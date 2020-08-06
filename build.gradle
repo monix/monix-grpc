@@ -5,8 +5,10 @@ buildscript {
     }
 
     dependencies {
+        classpath "edu.sc.seis.launch4j:launch4j:2.4.6"
         classpath 'ch.epfl.scala:gradle-bloop_2.12:1.4.3'
         classpath 'com.adarshr:gradle-test-logger-plugin:2.0.0'
+        classpath 'com.github.jengelman.gradle.plugins:shadow:6.0.0'
         classpath 'com.google.protobuf:protobuf-gradle-plugin:0.8.12'
     }
 }
