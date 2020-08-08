@@ -1,10 +1,10 @@
 apply plugin: 'scala'
-apply plugin: 'application'
 apply plugin: "edu.sc.seis.launch4j"
 apply plugin: 'com.github.johnrengelman.shadow'
 
-applicationName = 'protoc-gen-monix-grpc'
-mainClassName = 'com.netflix.monix.grpc.codegen.GrpcCodeGenerator' 
+ext {
+  mainClassName = 'com.netflix.monix.grpc.codegen.GrpcCodeGenerator' 
+}
 
 tasks.withType(ScalaCompile) {
     scalaCompileOptions.additionalParameters = [ "-Ywarn-unused:imports", "-language:dynamics" ]
@@ -20,6 +20,8 @@ dependencies {
     testCompile 'org.scalameta:munit_2.13:0.7.7'
 }
 
+jar.enabled = false
+
 task buildArtifacts(type: Copy) {
     from(buildDir) {
         rename 'protoc-gen-monix-grpc$', '$0-osx-x86_64.exe'
@@ -30,28 +32,31 @@ task buildArtifacts(type: Copy) {
     into "$buildDir/archives"
 }
 
-artifacts {
-    archives("$buildDir/archives/protoc-gen-monix-grpc-osx-x86_64.exe" as File) {
-        name "protoc-gen-monix-grpc"
-        classifier "osx-x86_64"
-        type "exe"
-        extension "exe"
-        builtBy buildArtifacts
-    }
-    archives("$buildDir/archives/protoc-gen-monix-grpc-linux-x86_64.exe" as File) {
-        name "protoc-gen-monix-grpc"
-        classifier "linux-x86_64"
-        type "exe"
-        extension "exe"
-        builtBy buildArtifacts
-    }
-    archives("$buildDir/archives/protoc-gen-monix-grpc-windows-x86_64.exe" as File) {
-        name "protoc-gen-monix-grpc"
-        classifier "windows-x86_64"
-        type "exe"
-        extension "exe"
-        builtBy createExe
-    }
+def osxExeFile = file("$buildDir/archives/protoc-gen-monix-grpc-osx-x86_64.exe")
+def osxArtifact = artifacts.add('archives', osxExeFile) {
+    name "protoc-gen-monix-grpc"
+    type "exe"
+    extension "exe"
+    classifier "osx-x86_64"
+    builtBy buildArtifacts
+}
+
+def linuxExeFile = file("$buildDir/archives/protoc-gen-monix-grpc-linux-x86_64.exe")
+def linuxArtifact = artifacts.add('archives', linuxExeFile) {
+    name "protoc-gen-monix-grpc"
+    type "exe"
+    extension "exe"
+    classifier "linux-x86_64"
+    builtBy buildArtifacts
+}
+
+def windowsExeFile = file("$buildDir/archives/protoc-gen-monix-grpc-windows-x86_64.exe")
+def windowsArtifact = artifacts.add('archives', windowsExeFile) {
+    name "protoc-gen-monix-grpc"
+    type "exe"
+    extension "exe"
+    classifier "windows-x86_64"
+    builtBy createExe
 }
 
 shadowJar {
@@ -71,7 +76,7 @@ shadowJar {
 
 launch4j {
     outfile = "protoc-gen-monix-grpc-windows-x86_64.exe"
-    mainClassName = project.mainClassName
+    mainClassName = mainClassName
     copyConfigurable = project.tasks.shadowJar.outputs.files
     jar = "lib/${project.tasks.shadowJar.archiveName}"
     outputDir = "archives"
@@ -92,8 +97,23 @@ task prependShellStub() {
     }
 }
 
+task createProperties(type: WriteProperties, dependsOn: processResources) {
+  outputFile = file("$buildDir/resources/main/version.properties")
+  property 'version', project.version.toString()
+}
+
+classes.dependsOn(createProperties)
 prependShellStub.dependsOn(shadowJar)
 buildArtifacts.dependsOn(shadowJar)
 buildArtifacts.dependsOn(createExe)
 buildArtifacts.dependsOn(prependShellStub)
-build.dependsOn(buildArtifacts)
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            artifact osxArtifact
+            artifact linuxArtifact
+            artifact windowsArtifact
+        }
+    }
+}
