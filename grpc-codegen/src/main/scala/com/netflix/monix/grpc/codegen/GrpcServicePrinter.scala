@@ -62,7 +62,7 @@ class GrpcServicePrinter(
 
   private def generateClientStub: PrinterEndo = p => {
     p.add(
-        s"def stub(channel: ${defs.Channel}, callOptions: ${defs.CallOptions} = ${defs.CallOptions}.DEFAULT): $serviceNameMonix[${defs.Metadata}] = {"
+        s"def stub(channel: ${defs.Channel}, callOptions: ${defs.CallOptions} = ${defs.CallOptions}.DEFAULT)(implicit scheduler: ${defs.Scheduler}): $serviceNameMonix[${defs.Metadata}] = {"
       )
       .indent
       .add(s"client[${defs.Metadata}](channel, identity, _ => callOptions)")
@@ -101,7 +101,9 @@ class GrpcServicePrinter(
         s"def bindService(impl: $serviceNameMonix[${defs.Metadata}])(implicit scheduler: ${defs.Scheduler}): ${defs.ServerServiceDefinition} = {"
       )
       .indent
-      .add(s"service[${defs.Metadata}](impl, _.asRight[${defs.Error}])")
+      .add(
+        s"service[${defs.Metadata}](impl, metadata => Right[${defs.Error}, ${defs.Metadata}](metadata))"
+      )
       .outdent
       .add("}")
   }
