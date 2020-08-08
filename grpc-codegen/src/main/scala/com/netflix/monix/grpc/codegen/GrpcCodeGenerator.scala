@@ -27,8 +27,6 @@ object GrpcCodeGenerator extends CodeGenApp {
   )
 
   override def process(request: CodeGenRequest): CodeGenResponse = {
-    println(s"request param ${request.parameter}")
-    println(s"request files ot generate ${request.filesToGenerate}")
     ProtobufGenerator.parseParameters(request.parameter) match {
       case Right(params) =>
         val codeGenParams = CodeGenParams()
@@ -55,7 +53,6 @@ object GrpcCodeGenerator extends CodeGenApp {
       val p = new GrpcServicePrinter(service, params.serviceSuffix, implicits)
       val code = p.printService(FunctionalPrinter()).result()
       val fileName = s"${file.scalaDirectory}/${service.name}${params.serviceSuffix}.scala"
-      println(s"Writing generated service file to $fileName")
 
       CodeGeneratorResponse.File.newBuilder().setName(fileName).setContent(code).build()
     }.toList
