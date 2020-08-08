@@ -73,8 +73,8 @@ class GrpcServicePrinter(
   private def generateClientDefinition: PrinterEndo = p => {
     def methodImpl(method: MethodDescriptor) = { (p: FunctionalPrinter) =>
       val deferOwner =
-        if (method.isServerStreaming) defs.Task
-        else s"${defs.Observable}"
+        if (!method.isServerStreaming) defs.Task
+        else s"${defs.ObservableOps}"
       p.add(
           serviceMethodSignature(method) + s" = ${deferOwner}.deferAction { implicit scheduler =>"
         )
