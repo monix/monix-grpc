@@ -130,7 +130,7 @@ class GrpcServicePrinter(
       .indent
       .newline
       .add(
-        s"val makeCtxOrFail: ${defs.Metadata} => ${defs.Task}[${defs.Ctx}] = ${defs.Task}.fromEither(makeCtx(_).leftMap[Throwable](${defs.FailedPrecondition}.withDescription(_).asRuntimeException()))"
+        s"val makeCtxOrFail: ${defs.Metadata} => ${defs.Task}[${defs.Ctx}] = metadata => ${defs.Task}.fromEither(makeCtx(metadata).left.map[Throwable](${defs.FailedPrecondition}.withDescription(_).asRuntimeException()))"
       )
       .newline
       .add(s"${defs.ServerServiceDefinition}")
