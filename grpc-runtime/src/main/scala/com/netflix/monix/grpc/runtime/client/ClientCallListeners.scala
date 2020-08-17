@@ -36,7 +36,7 @@ object ClientCallListeners {
       for {
         callStatus <- Task.fromCancelablePromise(statusPromise)
         result <- {
-          if (callStatus.isOk) Task.raiseError(callStatus.toException)
+          if (!callStatus.isOk) Task.raiseError(callStatus.toException)
           else findResponse(callStatus.trailers)
         }
       } yield result
