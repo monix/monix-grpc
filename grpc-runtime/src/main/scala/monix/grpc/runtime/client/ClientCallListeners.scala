@@ -71,8 +71,8 @@ object ClientCallListeners {
 
   final class StreamingClientCallListener[Response](
       askForMoreRequests: Int => Task[Unit]
-  )(
-      implicit scheduler: Scheduler
+  )(implicit
+      scheduler: Scheduler
   ) extends grpc.ClientCall.Listener[Response] {
     private val callStatus0 = CancelablePromise[CallStatus]()
     private val headers0 = Atomic(None: Option[grpc.Metadata])
