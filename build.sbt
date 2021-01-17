@@ -36,7 +36,6 @@ lazy val grpcRuntime = project
     libraryDependencies ++= List(
       "io.grpc" % "grpc-api" % "1.35.0",
       "io.monix" %% "monix" % "3.2.2",
-      "com.thesamet.scalapb" %% "scalapb-json4s" % "0.10.1",
       "com.thesamet.scalapb" %% "scalapb-runtime" % "0.10.8",
       "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % "0.10.1"
     )
