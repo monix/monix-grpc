@@ -9,8 +9,6 @@ import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.Descriptors.FileDescriptor
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse
 
-import scala.jdk.CollectionConverters.ListHasAsScala
-
 import protocgen.CodeGenApp
 import protocbridge.Artifact
 import protocgen.CodeGenRequest
@@ -49,6 +47,7 @@ object GrpcCodeGenerator extends CodeGenApp {
       params: CodeGenParams,
       implicits: DescriptorImplicits
   ): Seq[CodeGeneratorResponse.File] = {
+    import scala.jdk.CollectionConverters._
     file.getServices.asScala.map { service =>
       import implicits.{ServiceDescriptorPimp, FileDescriptorPimp}
 

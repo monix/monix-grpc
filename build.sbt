@@ -48,6 +48,8 @@ lazy val grpcCodeGen = project
   .settings(releaseSettings)
   .settings(
     name := "monix-grpc-codegen",
+    // So that it can used from sbt 1.x...
+    scalaVersion := "2.12.12",
     buildInfoKeys := List[BuildInfoKey](name, version, scalaVersion, sbtVersion),
     buildInfoPackage := "monix.grpc.codegen.build",
     name := "monix-grpc-codegen",
