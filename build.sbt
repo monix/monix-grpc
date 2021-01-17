@@ -59,4 +59,8 @@ lazy val grpcCodeGen = project
 
 lazy val protocGenMonixGrpc = protocGenProject("protoc-gen-monix-grpc", grpcCodeGen)
   .settings(releaseSettings)
-  .settings(Compile / mainClass := Some("monix.grpc.codegen.GrpcCodeGenerator"))
+  .settings(
+    // So that it can used from sbt 1.x...
+    scalaVersion := "2.12.12",
+    Compile / mainClass := Some("monix.grpc.codegen.GrpcCodeGenerator")
+  )
