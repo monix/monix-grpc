@@ -1,4 +1,4 @@
-package com.netflix.monix.grpc.runtime.client
+package monix.grpc.runtime.client
 
 import io.grpc
 

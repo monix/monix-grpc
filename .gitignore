@@ -16,11 +16,7 @@ bin/.scalafmt*
 
 target/
 .bloop/
-
-# Ensime's config and cache
-.ensime
-.ensime_cache/
-integrations/gradle-bloop/lib
+.bsp/
 
 # The index where we store project mappings for local benchmarks
 .local-benchmarks
@@ -39,3 +35,6 @@ benchmark-bridge/corpus/
 # Scala Native
 lowered.hnir
 build/
+.protoc-gen-monix-grpc
+.protoc-gen-monix-grpc-unix
+.protoc-gen-monix-grpc-windows

@@ -1,4 +1,4 @@
-package com.netflix.monix.grpc.runtime.client
+package monix.grpc.runtime.client
 
 import io.grpc
 
@@ -8,6 +8,7 @@ import monix.execution.Scheduler
 import monix.reactive.Observable
 import monix.reactive.OverflowStrategy
 import monix.execution.Cancelable
+import monix.eval.TaskLocal
 
 class ClientCall[Request, Response] private (
     call: grpc.ClientCall[Request, Response]
@@ -24,7 +25,7 @@ class ClientCall[Request, Response] private (
       _ <- halfClose
       response <- listener.waitForResponse
     } yield response
-    runResponseTaskHandler(makeCall)
+    TaskLocal.isolate(runResponseTaskHandler(makeCall))
   }
 
   def unaryToStreamingCall(
@@ -38,7 +39,9 @@ class ClientCall[Request, Response] private (
       _ <- sendMessage(message)
       _ <- halfClose
     } yield listener.responses
-    runResponseObservableHandler(Observable.fromTask(makeCall).flatten)
+    runResponseObservableHandler(
+      Observable.fromTask(TaskLocal.isolate(makeCall)).flatten
+    )
   }
 
   def streamingToUnaryCall(
@@ -49,11 +52,11 @@ class ClientCall[Request, Response] private (
     val makeCall = for {
       _ <- start(listener, headers)
       _ <- request(1)
-      _ <- messages.foreachL(sendMessage)
+      _ <- messages.mapEval(sendMessage).completedL
       _ <- halfClose
       response <- listener.waitForResponse
     } yield response
-    runResponseTaskHandler(makeCall)
+    TaskLocal.isolate(runResponseTaskHandler(makeCall))
   }
 
   def streamingToStreamingCall(
@@ -65,7 +68,7 @@ class ClientCall[Request, Response] private (
       _ <- start(listener, headers)
       streamRequests = for {
         _ <- request(1)
-        _ <- messages.foreachL(sendMessage)
+        _ <- messages.mapEval(sendMessage).completedL
         _ <- halfClose
       } yield ()
 
@@ -77,7 +80,9 @@ class ClientCall[Request, Response] private (
         }
       }
     } yield Observable(listener.responses, streamRequestsObs).merge
-    runResponseObservableHandler(Observable.fromTask(makeCall).flatten)
+    runResponseObservableHandler(
+      Observable.fromTask(TaskLocal.isolate(makeCall)).flatten
+    )
   }
 
   private def runResponseTaskHandler[R](response: Task[R]): Task[R] = {

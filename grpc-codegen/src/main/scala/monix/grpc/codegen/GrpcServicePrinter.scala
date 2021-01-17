@@ -1,4 +1,4 @@
-package com.netflix.monix.grpc.codegen
+package monix.grpc.codegen
 
 import scalapb.compiler.FunctionalPrinter.PrinterEndo
 import com.google.protobuf.Descriptors.{MethodDescriptor, ServiceDescriptor}
@@ -13,7 +13,7 @@ class GrpcServicePrinter(
   object defs {
     private val monixPkg = "_root_.monix"
     private val grpcPkg = "_root_.io.grpc"
-    private val thisPkg = "_root_.com.netflix.monix.grpc.runtime"
+    private val thisPkg = "_root_.monix.grpc.runtime"
 
     val Ctx = "Ctx"
     val Error = "String"
@@ -62,9 +62,8 @@ class GrpcServicePrinter(
 
   private def generateClientStub: PrinterEndo = p => {
     p.add(
-        s"def stub(channel: ${defs.Channel}, callOptions: ${defs.CallOptions} = ${defs.CallOptions}.DEFAULT)(implicit scheduler: ${defs.Scheduler}): $serviceNameMonix[${defs.Metadata}] = {"
-      )
-      .indent
+      s"def stub(channel: ${defs.Channel}, callOptions: ${defs.CallOptions} /*= ${defs.CallOptions}.DEFAULT*/)(implicit scheduler: ${defs.Scheduler}): $serviceNameMonix[${defs.Metadata}] = {"
+    ).indent
       .add(s"client[${defs.Metadata}](channel, identity, _ => callOptions)")
       .outdent
       .add("}")
@@ -76,9 +75,8 @@ class GrpcServicePrinter(
         if (!method.isServerStreaming) defs.Task
         else s"${defs.ObservableOps}"
       p.add(
-          serviceMethodSignature(method) + s" = ${deferOwner}.deferAction { implicit scheduler =>"
-        )
-        .indent
+        serviceMethodSignature(method) + s" = ${deferOwner}.deferAction { implicit scheduler =>"
+      ).indent
         .add(
           s"val call = ${defs.ClientCall}(channel, ${method.grpcDescriptor.fullName}, processOpts(${defs.CallOptions}.DEFAULT))"
         )
@@ -88,9 +86,8 @@ class GrpcServicePrinter(
     }
 
     p.add(
-        s"def client[${defs.Ctx}](channel: ${defs.Channel}, processCtx: ${defs.Ctx} => ${defs.Metadata}, processOpts: ${defs.CallOptions} => ${defs.CallOptions} = identity)(implicit scheduler: ${defs.Scheduler}): $serviceNameMonix[${defs.Ctx}] = new $serviceNameMonix[${defs.Ctx}] {"
-      )
-      .indent
+      s"def client[${defs.Ctx}](channel: ${defs.Channel}, processCtx: ${defs.Ctx} => ${defs.Metadata}, processOpts: ${defs.CallOptions} => ${defs.CallOptions} = identity)(implicit scheduler: ${defs.Scheduler}): $serviceNameMonix[${defs.Ctx}] = new $serviceNameMonix[${defs.Ctx}] {"
+    ).indent
       .call(service.methods.map(methodImpl): _*)
       .outdent
       .add("}")
@@ -98,9 +95,8 @@ class GrpcServicePrinter(
 
   private def generateBindService: PrinterEndo = p => {
     p.add(
-        s"def bindService(impl: $serviceNameMonix[${defs.Metadata}])(implicit scheduler: ${defs.Scheduler}): ${defs.ServerServiceDefinition} = {"
-      )
-      .indent
+      s"def bindService(impl: $serviceNameMonix[${defs.Metadata}])(implicit scheduler: ${defs.Scheduler}): ${defs.ServerServiceDefinition} = {"
+    ).indent
       .add(
         s"service[${defs.Metadata}](impl, metadata => Right[${defs.Error}, ${defs.Metadata}](metadata))"
       )
@@ -125,9 +121,8 @@ class GrpcServicePrinter(
     }
 
     p.add(
-        s"def service[${defs.Ctx}](impl: $serviceNameMonix[${defs.Ctx}], makeCtx: ${defs.Metadata} => Either[${defs.Error}, ${defs.Ctx}])(implicit scheduler: ${defs.Scheduler}): ${defs.ServerServiceDefinition} = {"
-      )
-      .indent
+      s"def service[${defs.Ctx}](impl: $serviceNameMonix[${defs.Ctx}], makeCtx: ${defs.Metadata} => Either[${defs.Error}, ${defs.Ctx}])(implicit scheduler: ${defs.Scheduler}): ${defs.ServerServiceDefinition} = {"
+    ).indent
       .newline
       .add(
         s"val makeCtxOrFail: ${defs.Metadata} => ${defs.Task}[${defs.Ctx}] = metadata => ${defs.Task}.fromEither(makeCtx(metadata).left.map[Throwable](${defs.FailedPrecondition}.withDescription(_).asRuntimeException()))"

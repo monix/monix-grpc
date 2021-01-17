@@ -1,4 +1,4 @@
-package com.netflix.monix.grpc.runtime.server
+package monix.grpc.runtime.server
 
 import io.grpc
 
@@ -10,6 +10,7 @@ import monix.execution.Scheduler
 import monix.execution.CancelablePromise
 import monix.execution.atomic.AtomicAny
 import monix.execution.AsyncQueue
+import monix.eval.TaskLocal
 
 /**
  * Defines the grpc service API handlers that are used in the stub code
@@ -29,8 +30,8 @@ object ServerCallHandlers {
   def unaryToUnaryCall[T, R](
       f: (T, grpc.Metadata) => Task[R],
       options: ServerCallOptions = ServerCallOptions.default
-  )(
-      implicit scheduler: Scheduler
+  )(implicit
+      scheduler: Scheduler
   ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
     def startCall(
         grpcCall: grpc.ServerCall[T, R],
@@ -39,7 +40,7 @@ object ServerCallHandlers {
       val call = ServerCall(grpcCall, options)
       val listener = new UnaryCallListener(call, scheduler)
       listener.runUnaryResponseListener(metadata) { msg =>
-        f(msg, metadata).flatMap(call.sendMessage)
+        Task.defer(f(msg, metadata)).flatMap(call.sendMessage)
       }
       listener
     }
@@ -58,8 +59,8 @@ object ServerCallHandlers {
   def unaryToStreamingCall[T, R](
       f: (T, grpc.Metadata) => Observable[R],
       options: ServerCallOptions = ServerCallOptions.default
-  )(
-      implicit scheduler: Scheduler
+  )(implicit
+      scheduler: Scheduler
   ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
     def startCall(
         grpcCall: grpc.ServerCall[T, R],
@@ -68,7 +69,7 @@ object ServerCallHandlers {
       val call = ServerCall(grpcCall, options)
       val listener = new UnaryCallListener(call, scheduler)
       listener.runUnaryResponseListener(metadata) { msg =>
-        f(msg, metadata).foreachL(call.sendMessage)
+        Observable.defer(f(msg, metadata)).mapEval(call.sendMessage).completedL
       }
       listener
     }
@@ -98,7 +99,8 @@ object ServerCallHandlers {
         }
       } yield ()
 
-      runResponseHandler(call, handleResponse, isCancelled)
+      TaskLocal
+        .isolate(runResponseHandler(call, handleResponse, isCancelled))
         .runAsyncAndForget(scheduler)
     }
 
@@ -128,8 +130,8 @@ object ServerCallHandlers {
   def streamingToUnaryCall[T, R](
       f: (Observable[T], grpc.Metadata) => Task[R],
       options: ServerCallOptions = ServerCallOptions.default
-  )(
-      implicit scheduler: Scheduler
+  )(implicit
+      scheduler: Scheduler
   ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
     def startCall(
         grpcCall: grpc.ServerCall[T, R],
@@ -138,7 +140,7 @@ object ServerCallHandlers {
       val call = ServerCall(grpcCall, options)
       val listener = new StreamingCallListener(call)(scheduler)
       listener.runStreamingResponseListener(metadata) { msgs =>
-        f(msgs, metadata).flatMap(call.sendMessage)
+        Task.defer(f(msgs, metadata)).flatMap(call.sendMessage)
       }
       listener
     }
@@ -156,8 +158,8 @@ object ServerCallHandlers {
   def streamingToStreamingCall[T, R](
       f: (Observable[T], grpc.Metadata) => Observable[R],
       options: ServerCallOptions = ServerCallOptions.default
-  )(
-      implicit scheduler: Scheduler
+  )(implicit
+      scheduler: Scheduler
   ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
     def startCall(
         grpcCall: grpc.ServerCall[T, R],
@@ -166,7 +168,7 @@ object ServerCallHandlers {
       val call = ServerCall(grpcCall, options)
       val listener = new StreamingCallListener(call)(scheduler)
       listener.runStreamingResponseListener(metadata) { msgs =>
-        f(msgs, metadata).foreachL(call.sendMessage)
+        Observable.defer(f(msgs, metadata)).mapEval(call.sendMessage).completedL
       }
       listener
     }
@@ -194,7 +196,8 @@ object ServerCallHandlers {
         }
       } yield ()
 
-      runResponseHandler(call, handleResponse, isCancelled)
+      TaskLocal
+        .isolate(runResponseHandler(call, handleResponse, isCancelled))
         .runAsyncAndForget(scheduler)
     }
 

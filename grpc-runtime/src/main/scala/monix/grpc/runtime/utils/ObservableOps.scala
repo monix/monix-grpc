@@ -1,4 +1,4 @@
-package com.netflix.monix.grpc.runtime.utils
+package monix.grpc.runtime.utils
 
 import monix.eval.Task
 import monix.reactive.Observable

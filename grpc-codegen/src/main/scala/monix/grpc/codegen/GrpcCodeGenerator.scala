@@ -1,4 +1,4 @@
-package com.netflix.monix.grpc.codegen
+package monix.grpc.codegen
 
 import scalapb.options.compiler.Scalapb
 import scalapb.compiler.ProtobufGenerator
@@ -16,6 +16,8 @@ import protocbridge.Artifact
 import protocgen.CodeGenRequest
 import protocgen.CodeGenResponse
 
+import monix.grpc.codegen.build.BuildInfo
+
 case class CodeGenParams(serviceSuffix: String = "GrpcService")
 
 object GrpcCodeGenerator extends CodeGenApp {
@@ -23,7 +25,7 @@ object GrpcCodeGenerator extends CodeGenApp {
     Scalapb.registerAllExtensions(registry)
 
   override def suggestedDependencies: Seq[Artifact] = Seq(
-    Artifact("com.netflix.monix.grpc", "grpc-runtime", currentVersion, crossVersion = false)
+    Artifact("me.vican.jorge", "monix-grpc-runtime", BuildInfo.version, crossVersion = true)
   )
 
   override def process(request: CodeGenRequest): CodeGenResponse = {
@@ -56,17 +58,5 @@ object GrpcCodeGenerator extends CodeGenApp {
 
       CodeGeneratorResponse.File.newBuilder().setName(fileName).setContent(code).build()
     }.toList
-  }
-
-  private lazy val currentVersion: String = {
-    val props = new java.util.Properties()
-    val is = getClass.getResourceAsStream("/version.properties")
-    if (is == null) "0.0.0-UNRELEASED"
-    else {
-      props.load(is)
-      Option(props.getProperty("version"))
-        .filter(_ != "unspecified")
-        .getOrElse("0.0.0-UNRELEASED")
-    }
   }
 }

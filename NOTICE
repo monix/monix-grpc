@@ -1,0 +1,12 @@
+Monix gRPC
+Copyright 2020 Jorge Vicente Cantero
+
+---
+
+This repository includes example protocol buffers developed as part of
+gRPC.
+
+* LICENSE: APACHE-2.0
+* HOMEPAGE: https://github.com/grpc/grpc-java
+* LOCATION_IN_ZIO_GRPC: examples/src/main/protobuf/
+---

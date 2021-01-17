@@ -1,4 +1,4 @@
-package com.netflix.monix.grpc.runtime.server
+package monix.grpc.runtime.server
 
 import io.grpc
 import monix.eval.Task
@@ -56,7 +56,8 @@ abstract class ServerCallOptions private (
 }
 
 object ServerCallOptions {
-  val default: ServerCallOptions = new ServerCallOptions(None) {}
+  val default: ServerCallOptions =
+    new ServerCallOptions(Some(GzipCompressor)) {}
 }
 
 sealed abstract class ServerCompressor(val name: String) extends Product with Serializable
