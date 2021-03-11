@@ -1,6 +1,11 @@
+val Scala213 = "2.13.5"
+
+val Scala212 = "2.12.13"
+
+ThisBuild / scalaVersion := Scala212
+
 inThisBuild(
   List(
-    scalaVersion := "2.13.3",
     resolvers += Resolver.sonatypeRepo("snapshots"),
     organization := "me.vican.jorge",
     homepage := Some(url("https://github.com/jvican/dijon")),
@@ -41,26 +46,49 @@ lazy val grpcRuntime = project
     )
   )
 
-lazy val grpcCodeGen = project
+lazy val grpcCodeGen = projectMatrix
   .in(file("grpc-codegen"))
+  .defaultAxes()
   .enablePlugins(BuildInfoPlugin)
   .settings(releaseSettings)
   .settings(
     name := "monix-grpc-codegen",
     // So that it can used from sbt 1.x...
-    scalaVersion := "2.12.12",
     buildInfoKeys := List[BuildInfoKey](name, version, scalaVersion, sbtVersion),
     buildInfoPackage := "monix.grpc.codegen.build",
     name := "monix-grpc-codegen",
     libraryDependencies ++= Seq(
       "com.thesamet.scalapb" %% "compilerplugin" % scalapb.compiler.Version.scalapbVersion
     )
-  )
+  )  .jvmPlatform(scalaVersions = Seq(Scala212, Scala213))
 
-lazy val protocGenMonixGrpc = protocGenProject("protoc-gen-monix-grpc", grpcCodeGen)
+lazy val codeGenJVM212 = grpcCodeGen.jvm(Scala212)
+
+lazy val protocGenMonixGrpc = protocGenProject("protoc-gen-monix-grpc", codeGenJVM212)
   .settings(releaseSettings)
   .settings(
     // So that it can used from sbt 1.x...
     scalaVersion := "2.12.12",
     Compile / mainClass := Some("monix.grpc.codegen.GrpcCodeGenerator")
+  )
+
+lazy val e2e = project
+  .in(file("e2e"))
+  .dependsOn(grpcRuntime)
+  .enablePlugins(LocalCodeGenPlugin)
+  .settings(
+    crossScalaVersions := Seq("2.12.12", "2.13.3"),
+    skip in publish := true,
+    libraryDependencies ++= Seq(
+      "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion
+    ),
+    PB.targets in Compile := Seq(
+      scalapb.gen(grpc = true) -> (sourceManaged in Compile).value,
+      genModule(
+        "monix.grpc.codegen.GrpcCodeGenerator$"
+      )                        -> (sourceManaged in Compile).value
+    ),
+    PB.protocVersion := "3.13.0",
+    codeGenClasspath := (codeGenJVM212 / Compile / fullClasspath).value,
+    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
   )
