@@ -220,16 +220,18 @@ object ServerCallHandlers {
 
   private def runResponseHandler[T, R](
       call: ServerCall[T, R],
-      response: Task[Unit],
+      handleResponse: Task[Unit],
       isCancelled: CancelablePromise[Unit]
   ): Task[Unit] = {
-    val finalResponse = response.guaranteeCase {
+    val finalHandler = handleResponse.guaranteeCase {
       case ExitCase.Completed => call.closeStream(grpc.Status.OK, new grpc.Metadata())
       case ExitCase.Canceled => call.closeStream(grpc.Status.CANCELLED, new grpc.Metadata())
       case ExitCase.Error(err) => reportError(err, call, new grpc.Metadata())
     }
 
-    Task.racePair(finalResponse, Task.fromCancelablePromise(isCancelled)).void
+    // If `isCancelled` is completed, then client cancelled the grpc call and
+    // `finalHandler` will be cancelled automatically by the `race` method
+    Task.race(finalHandler, Task.fromCancelablePromise(isCancelled)).void
   }
 
   private def reportError[T, R](
