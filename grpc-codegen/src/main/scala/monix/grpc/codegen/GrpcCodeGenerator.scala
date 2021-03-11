@@ -1,20 +1,11 @@
 package monix.grpc.codegen
-
-import scalapb.options.compiler.Scalapb
-import scalapb.compiler.ProtobufGenerator
-import scalapb.compiler.DescriptorImplicits
-import scalapb.compiler.FunctionalPrinter
-
-import com.google.protobuf.ExtensionRegistry
+import scalapb.options.Scalapb
 import com.google.protobuf.Descriptors.FileDescriptor
+import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse
-
-import protocgen.CodeGenApp
 import protocbridge.Artifact
-import protocgen.CodeGenRequest
-import protocgen.CodeGenResponse
-
-import monix.grpc.codegen.build.BuildInfo
+import protocgen.{CodeGenApp, CodeGenRequest, CodeGenResponse}
+import scalapb.compiler.{DescriptorImplicits, FunctionalPrinter, ProtobufGenerator}
 
 case class CodeGenParams(serviceSuffix: String = "GrpcService")
 
@@ -49,7 +40,7 @@ object GrpcCodeGenerator extends CodeGenApp {
   ): Seq[CodeGeneratorResponse.File] = {
     import scala.jdk.CollectionConverters._
     file.getServices.asScala.map { service =>
-      import implicits.{ServiceDescriptorPimp, FileDescriptorPimp}
+      import implicits.{FileDescriptorPimp, ServiceDescriptorPimp}
 
       val p = new GrpcServicePrinter(service, params.serviceSuffix, implicits)
       val code = p.printService(FunctionalPrinter()).result()

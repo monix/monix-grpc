@@ -80,8 +80,11 @@ lazy val e2e = project
     crossScalaVersions := Seq("2.12.12", "2.13.3"),
     skip in publish := true,
     libraryDependencies ++= Seq(
-      "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion
+      "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion,
+      "io.grpc"               % "grpc-netty"           %       "1.36.0",
+      "org.scalameta" %% "munit" % "0.7.22"
     ),
+    testFrameworks += new TestFramework("munit.Framework"),
     PB.targets in Compile := Seq(
       scalapb.gen(grpc = true) -> (sourceManaged in Compile).value,
       genModule(
