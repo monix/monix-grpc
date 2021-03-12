@@ -7,6 +7,8 @@ import protocbridge.Artifact
 import protocgen.{CodeGenApp, CodeGenRequest, CodeGenResponse}
 import scalapb.compiler.{DescriptorImplicits, FunctionalPrinter, ProtobufGenerator}
 
+import monix.grpc.codegen.build.BuildInfo
+
 case class CodeGenParams(serviceSuffix: String = "GrpcService")
 
 object GrpcCodeGenerator extends CodeGenApp {

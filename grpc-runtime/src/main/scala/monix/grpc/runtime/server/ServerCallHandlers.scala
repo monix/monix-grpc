@@ -1,16 +1,11 @@
 package monix.grpc.runtime.server
 
-import io.grpc
-
 import cats.effect.ExitCase
-
-import monix.eval.Task
-import monix.reactive.Observable
-import monix.execution.Scheduler
-import monix.execution.CancelablePromise
+import io.grpc
+import monix.eval.{Task, TaskLocal}
+import monix.execution.{AsyncQueue, CancelablePromise, Scheduler}
 import monix.execution.atomic.AtomicAny
-import monix.execution.AsyncQueue
-import monix.eval.TaskLocal
+import monix.reactive.Observable
 
 /**
  * Defines the grpc service API handlers that are used in the stub code
@@ -101,7 +96,7 @@ object ServerCallHandlers {
 
       TaskLocal
         .isolate(runResponseHandler(call, handleResponse, isCancelled))
-        .runAsyncAndForget(scheduler)
+        .runAsyncAndForgetOpt(scheduler, Task.defaultOptions.enableLocalContextPropagation)
     }
 
     override def onHalfClose(): Unit =

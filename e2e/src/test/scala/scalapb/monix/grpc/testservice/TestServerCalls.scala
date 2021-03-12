@@ -1,6 +1,7 @@
 package scalapb.monix.grpc.testservice
 
 import io.grpc.{Metadata, Server}
+import monix.eval.Task
 import monix.execution.Scheduler.global
 import monix.execution.schedulers.TestScheduler
 
@@ -27,9 +28,8 @@ class TestServerCalls extends munit.FunSuite {
     val client = stub()
     client.unary(Request(Request.Scenario.OK), new Metadata())
       .map{r =>
-        println(r)
         assertEquals(r.out, "OK")
-      }.runToFuture(global)
+      }.runToFutureOpt(global, Task.defaultOptions.enableLocalContextPropagation)
   }
 
   test("unary call fail"){

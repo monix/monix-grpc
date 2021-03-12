@@ -42,7 +42,9 @@ lazy val grpcRuntime = project
       "io.grpc" % "grpc-api" % "1.35.0",
       "io.monix" %% "monix" % "3.2.2",
       "com.thesamet.scalapb" %% "scalapb-runtime" % "0.10.8",
-      "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % "0.10.1"
+      "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % "0.10.1",
+      "org.slf4j" % "slf4j-api" % "1.7.30",
+      "org.apache.logging.log4j" % "log4j-slf4j-impl" % "2.13.3"
     )
   )
 
@@ -82,7 +84,8 @@ lazy val e2e = project
     libraryDependencies ++= Seq(
       "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion,
       "io.grpc"               % "grpc-netty"           %       "1.36.0",
-      "org.scalameta" %% "munit" % "0.7.22"
+      "org.scalameta" %% "munit" % "0.7.22",
+      "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2"
     ),
     testFrameworks += new TestFramework("munit.Framework"),
     PB.targets in Compile := Seq(
