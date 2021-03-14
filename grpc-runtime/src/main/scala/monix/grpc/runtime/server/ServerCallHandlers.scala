@@ -72,7 +72,8 @@ object ServerCallHandlers {
               call.sendMessage(message)
             } else {
               Task.fromFuture(listener.onReadyEffect.take()).flatMap(_ => call.sendMessage(message))
-              //we should block on something until the onReady is received
+               val waitUntilReady = Task.fromFuture(listener.onReadyEffect.take())
+               waitUntilReady.>>(call.sendMessage(message))
             }
           }
           .completedL
