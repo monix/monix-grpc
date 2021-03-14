@@ -62,7 +62,8 @@ lazy val grpcCodeGen = projectMatrix
     libraryDependencies ++= Seq(
       "com.thesamet.scalapb" %% "compilerplugin" % scalapb.compiler.Version.scalapbVersion
     )
-  )  .jvmPlatform(scalaVersions = Seq(Scala212, Scala213))
+  )
+  .jvmPlatform(scalaVersions = Seq(Scala212, Scala213))
 
 lazy val codeGenJVM212 = grpcCodeGen.jvm(Scala212)
 
@@ -83,7 +84,7 @@ lazy val e2e = project
     skip in publish := true,
     libraryDependencies ++= Seq(
       "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion,
-      "io.grpc"               % "grpc-netty"           %       "1.36.0",
+      "io.grpc" % "grpc-netty" % "1.36.0",
       "org.scalameta" %% "munit" % "0.7.22",
       "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2"
     ),
@@ -92,7 +93,7 @@ lazy val e2e = project
       scalapb.gen(grpc = true) -> (sourceManaged in Compile).value,
       genModule(
         "monix.grpc.codegen.GrpcCodeGenerator$"
-      )                        -> (sourceManaged in Compile).value
+      ) -> (sourceManaged in Compile).value
     ),
     PB.protocVersion := "3.13.0",
     codeGenClasspath := (codeGenJVM212 / Compile / fullClasspath).value,
