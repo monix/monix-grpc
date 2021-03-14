@@ -4,10 +4,12 @@ import io.grpc
 import monix.eval.Task
 
 // TODO: Add attributes, compression, message compression.
-// TODO: add a way to return typed error with status codes + message
 class ServerCall[Request, Response] private (
     val call: grpc.ServerCall[Request, Response]
 ) extends AnyVal {
+
+  def isReady: Boolean = call.isReady
+
   def request(numMessages: Int): Task[Unit] =
     handleError(Task(call.request(numMessages)), s"Failed to request message $numMessages!")
 

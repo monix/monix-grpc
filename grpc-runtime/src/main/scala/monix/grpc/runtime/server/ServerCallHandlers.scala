@@ -3,8 +3,8 @@ package monix.grpc.runtime.server
 import cats.effect.ExitCase
 import io.grpc
 import monix.eval.{Task, TaskLocal}
-import monix.execution.{AsyncQueue, CancelablePromise, Scheduler}
 import monix.execution.atomic.AtomicAny
+import monix.execution.{AsyncQueue, AsyncVar, CancelablePromise, Scheduler}
 import monix.reactive.Observable
 
 /**
@@ -63,8 +63,19 @@ object ServerCallHandlers {
     ): grpc.ServerCall.Listener[T] = {
       val call = ServerCall(grpcCall, options)
       val listener = new UnaryCallListener(call, scheduler)
+
       listener.runUnaryResponseListener(metadata) { msg =>
-        Observable.defer(f(msg, metadata)).mapEval(call.sendMessage).completedL
+        Observable
+          .defer(f(msg, metadata))
+          .mapEval { message =>
+            if (call.isReady) {
+              call.sendMessage(message)
+            } else {
+              Task.fromFuture(listener.onReadyEffect.take()).flatMap(_ => call.sendMessage(message))
+              //we should block on something until the onReady is received
+            }
+          }
+          .completedL
       }
       listener
     }
@@ -74,12 +85,14 @@ object ServerCallHandlers {
       call: ServerCall[T, R],
       scheduler: Scheduler
   ) extends grpc.ServerCall.Listener[T] {
+    val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
+
     private val requestMsg = AtomicAny[Option[T]](None)
     private val completed = CancelablePromise[grpc.Status]()
     private val isCancelled = CancelablePromise[Unit]()
 
     def runUnaryResponseListener(metadata: grpc.Metadata)(
-        sendResponse: T => Task[Unit]
+      sendResponse: T => Task[Unit]
     ): Unit = {
       val handleResponse = for {
         _ <- call.request(1) // Number tells expected request messages
@@ -101,8 +114,10 @@ object ServerCallHandlers {
 
     override def onHalfClose(): Unit =
       completed.trySuccess(grpc.Status.OK)
+
     override def onCancel(): Unit =
       isCancelled.trySuccess(())
+
     override def onMessage(msg: T): Unit = {
       if (requestMsg.compareAndSet(None, Some(msg))) ()
       else {
@@ -110,6 +125,10 @@ object ServerCallHandlers {
         val errStatus = grpc.Status.INTERNAL.withDescription(errMsg)
         completed.tryFailure(errStatus.asRuntimeException())
       }
+    }
+
+    override def onReady(): Unit = {
+      onReadyEffect.tryPut(())
     }
   }
 
