@@ -6,7 +6,8 @@ package scalapb.monix.grpc
 
 package object testservice {
   case class SilentException() extends RuntimeException("SILENT") {
+    override def fillInStackTrace(): Throwable = this
+
     override def getStackTrace: Array[StackTraceElement] = Array()
   }
-
 }

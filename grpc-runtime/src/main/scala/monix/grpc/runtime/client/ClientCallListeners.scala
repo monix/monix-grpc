@@ -33,13 +33,10 @@ object ClientCallListeners {
     private val response0 = Atomic(None: Option[Response])
 
     def waitForResponse: Task[Response] = {
-      for {
-        callStatus <- Task.fromCancelablePromise(statusPromise)
-        result <- {
-          if (!callStatus.isOk) Task.raiseError(callStatus.toException)
-          else findResponse(callStatus.trailers)
-        }
-      } yield result
+      Task.fromCancelablePromise(statusPromise).flatMap { callStatus =>
+        if (!callStatus.isOk) Task.raiseError(callStatus.toException)
+        else findResponse(callStatus.trailers)
+      }
     }
 
     private def findResponse(trailers: grpc.Metadata): Task[Response] = {

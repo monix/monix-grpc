@@ -21,8 +21,7 @@ class ClientCall[Request, Response] private (
     val makeCall = for {
       _ <- start(listener, headers)
       _ <- request(1)
-      _ <- sendMessage(message)
-      _ <- halfClose
+      _ <- sendMessage(message).doOnFinish(_ => halfClose)
       response <- listener.waitForResponse
     } yield response
     TaskLocal.isolate(runResponseTaskHandler(makeCall))
@@ -36,8 +35,7 @@ class ClientCall[Request, Response] private (
     val makeCall = for {
       _ <- start(listener, headers)
       _ <- request(1)
-      _ <- sendMessage(message)
-      _ <- halfClose
+      _ <- sendMessage(message).doOnFinish(_ => halfClose)
     } yield listener.responses
     runResponseObservableHandler(
       Observable.fromTask(TaskLocal.isolate(makeCall)).flatten
@@ -52,10 +50,24 @@ class ClientCall[Request, Response] private (
     val makeCall = for {
       _ <- start(listener, headers)
       _ <- request(1)
-      _ <- messages.mapEval(sendMessage).completedL
-      _ <- halfClose
-      response <- listener.waitForResponse
-    } yield response
+      //we must start sending the messages and listen for the respons
+      // the message stream should be canceled when the server responds
+      response <- Task.racePair(
+        listener.waitForResponse,
+        messages.mapEval(sendMessage).completedL.doOnFinish(_ => halfClose)
+      )
+      result <- response match {
+        case Left((response, task)) =>
+          Task {
+            task.cancel
+            response
+          }
+        case Right((listeningResponse, _)) => listeningResponse.join
+      }
+    } yield {
+      result
+    }
+
     TaskLocal.isolate(runResponseTaskHandler(makeCall))
   }
 
@@ -68,8 +80,7 @@ class ClientCall[Request, Response] private (
       _ <- start(listener, headers)
       streamRequests = for {
         _ <- request(1)
-        _ <- messages.mapEval(sendMessage).completedL
-        _ <- halfClose
+        _ <- messages.mapEval(sendMessage).completedL.doOnFinish(_ => halfClose)
       } yield ()
 
       streamRequestsObs = Observable.fromTask(streamRequests).flatMap { _ =>

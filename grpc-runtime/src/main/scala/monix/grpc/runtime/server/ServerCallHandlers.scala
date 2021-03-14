@@ -187,13 +187,13 @@ object ServerCallHandlers {
           Observable
             .repeatEvalF(pullValue)
             .takeWhile(_.isDefined)
-            .flatMap(elem => Observable.fromIterable(elem.toList))
+            .flatMap(elem => Observable.fromIterable(elem))
         }
       } yield ()
 
       TaskLocal
         .isolate(runResponseHandler(call, handleResponse, isCancelled))
-        .runAsyncAndForget(scheduler)
+        .runAsyncAndForgetOpt(scheduler, Task.defaultOptions.enableLocalContextPropagation)
     }
 
     override def onCancel(): Unit =
