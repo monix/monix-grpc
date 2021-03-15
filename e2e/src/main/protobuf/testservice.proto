@@ -8,9 +8,10 @@ message Request {
         ERROR_NOW = 1; // fail with an error
         ERROR_AFTER = 2; // for server streaming, error after two responses
         DELAY = 3; // do not return a response. for testing cancellations
+        SLOW = 4;
     }
     Scenario scenario = 1;
-    int32 in = 2;
+    repeated int32 bulk = 2;
 }
 
 message Response {

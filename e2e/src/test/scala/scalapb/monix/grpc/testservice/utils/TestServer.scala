@@ -3,13 +3,14 @@ package scalapb.monix.grpc.testservice.utils
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.netty.NettyChannelBuilder
 import io.grpc.{CallOptions, ManagedChannel, Metadata, Server, ServerBuilder}
+import io.netty.channel.socket.nio.NioChannelOption
 import monix.eval.Task
 import monix.execution.Scheduler.global
 import monix.reactive.Observable
 import scalapb.monix.grpc.testservice.Request.Scenario
 import scalapb.monix.grpc.testservice.{Request, Response, TestServiceGrpcService}
 
-import scala.concurrent.duration.SECONDS
+import scala.concurrent.duration.{DurationInt, SECONDS}
 
 class TestServer() extends TestServiceGrpcService[Metadata] with LazyLogging {
 
@@ -57,6 +58,7 @@ class TestServer() extends TestServiceGrpcService[Metadata] with LazyLogging {
           case Scenario.OK => Task(successCount + 1)
           case Scenario.ERROR_NOW => Task.raiseError(SilentException())
           case Scenario.DELAY => Task.never
+          case Scenario.SLOW => Task.delay(successCount + 1).delayExecution(1.second)
           case _ => Task.raiseError(new RuntimeException("TEST-FAIL"))
         }
       }

@@ -13,6 +13,8 @@ import monix.eval.TaskLocal
 class ClientCall[Request, Response] private (
     call: grpc.ClientCall[Request, Response]
 ) {
+
+
   def unaryToUnaryCall(
       message: Request,
       headers: grpc.Metadata
@@ -25,6 +27,7 @@ class ClientCall[Request, Response] private (
       response <- listener.waitForResponse
     } yield response
     TaskLocal.isolate(runResponseTaskHandler(makeCall))
+      .executeWithOptions(_.enableLocalContextPropagation)
   }
 
   def unaryToStreamingCall(
@@ -38,7 +41,7 @@ class ClientCall[Request, Response] private (
       _ <- sendMessage(message).guarantee(halfClose)
     } yield listener.responses
     runResponseObservableHandler(
-      Observable.fromTask(TaskLocal.isolate(makeCall)).flatten
+      Observable.fromTask(TaskLocal.isolate(makeCall).executeWithOptions(_.enableLocalContextPropagation)).flatten
     )
   }
 
@@ -52,6 +55,8 @@ class ClientCall[Request, Response] private (
       _ <- request(1)
       runningRequest <- {
         val clientStream = messages
+          //todo make configurable
+          .asyncBoundary(OverflowStrategy.BackPressure(100))
           .mapEval(message =>
             if (call.isReady) {
               sendMessage(message)
@@ -74,7 +79,7 @@ class ClientCall[Request, Response] private (
       }
     } yield response
 
-    TaskLocal.isolate(runResponseTaskHandler(makeCall))
+    TaskLocal.isolate(runResponseTaskHandler(makeCall)).executeWithOptions(_.enableLocalContextPropagation)
   }
 
   def streamingToStreamingCall(
@@ -87,6 +92,8 @@ class ClientCall[Request, Response] private (
       streamRequests = for {
         _ <- request(1)
         _ <- messages
+          //todo make configurable
+          .asyncBoundary(OverflowStrategy.BackPressure(100))
           .mapEval(message =>
             if (call.isReady) {
               sendMessage(message)
@@ -108,7 +115,7 @@ class ClientCall[Request, Response] private (
       }
     } yield Observable(listener.responses, streamRequestsObs).merge
     runResponseObservableHandler(
-      Observable.fromTask(TaskLocal.isolate(makeCall)).flatten
+      Observable.fromTask(TaskLocal.isolate(makeCall).executeWithOptions(_.enableLocalContextPropagation)).flatten
     )
   }
 
@@ -137,11 +144,15 @@ class ClientCall[Request, Response] private (
       headers: grpc.Metadata
   ): Task[Unit] = Task(call.start(listener, headers))
 
-  private def request(numMessages: Int): Task[Unit] =
+  private def request(numMessages: Int): Task[Unit] = {
+    println(s"asking more $numMessages")
     Task(call.request(numMessages))
+  }
 
-  private def sendMessage(message: Request): Task[Unit] =
+  private def sendMessage(message: Request): Task[Unit] = {
+    println(s"sending $message ${call.isReady}")
     Task(call.sendMessage(message))
+  }
 
   private def halfClose: Task[Unit] =
     Task(call.halfClose())

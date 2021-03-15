@@ -5,7 +5,7 @@ import io.grpc
 import monix.eval.{Task, TaskLocal}
 import monix.execution.atomic.AtomicAny
 import monix.execution.{AsyncQueue, AsyncVar, CancelablePromise, Scheduler}
-import monix.reactive.Observable
+import monix.reactive.{Observable, OverflowStrategy}
 
 /**
  * Defines the grpc service API handlers that are used in the stub code
@@ -67,6 +67,8 @@ object ServerCallHandlers {
       listener.runUnaryResponseListener(metadata) { msg =>
         Observable
           .defer(f(msg, metadata))
+          //todo make configurable
+          .asyncBoundary(OverflowStrategy.BackPressure(100))
           .mapEval { message =>
             if (call.isReady) {
               call.sendMessage(message)
@@ -109,7 +111,8 @@ object ServerCallHandlers {
 
       TaskLocal
         .isolate(runResponseHandler(call, handleResponse, isCancelled))
-        .runAsyncAndForgetOpt(scheduler, Task.defaultOptions.enableLocalContextPropagation)
+        .executeWithOptions(_.enableLocalContextPropagation)
+        .runAsyncAndForget(scheduler)
     }
 
     override def onHalfClose(): Unit =
@@ -183,6 +186,8 @@ object ServerCallHandlers {
       listener.runStreamingResponseListener(metadata) { msgs =>
         Observable
           .defer(f(msgs, metadata))
+          //todo make configurable
+          .asyncBoundary(OverflowStrategy.BackPressure(100))
           .mapEval { message =>
             if (call.isReady) {
               call.sendMessage(message)
@@ -202,7 +207,7 @@ object ServerCallHandlers {
   )(implicit scheduler: Scheduler)
       extends grpc.ServerCall.Listener[T] {
     private val isCancelled = CancelablePromise[Unit]()
-    private val queue = AsyncQueue.unbounded[Option[T]](None)(scheduler)
+    private val queue = AsyncQueue.bounded[Option[T]](128)(scheduler)
     val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
 
     def runStreamingResponseListener(metadata: grpc.Metadata)(
@@ -222,7 +227,8 @@ object ServerCallHandlers {
 
       TaskLocal
         .isolate(runResponseHandler(call, handleResponse, isCancelled))
-        .runAsyncAndForgetOpt(scheduler, Task.defaultOptions.enableLocalContextPropagation)
+        .executeWithOptions(_.enableLocalContextPropagation)
+        .runAsyncAndForget(scheduler)
     }
 
     override def onCancel(): Unit =
@@ -232,6 +238,7 @@ object ServerCallHandlers {
       Task.deferFuture(queue.offer(None)).runSyncUnsafe()
 
     override def onMessage(msg: T): Unit = {
+      println(s"received $msg")
       val processMessage = for {
         _ <- call.request(1)
         _ <- Task.deferFuture(queue.offer(Some(msg)))
