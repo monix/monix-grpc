@@ -1,21 +1,19 @@
-package scalapb.monix.grpc.testservice
+package scalapb.monix.grpc.testservice.utils
 
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.netty.NettyChannelBuilder
-import io.grpc.{CallOptions, Channel, ManagedChannelBuilder, Metadata, Server, ServerBuilder}
+import io.grpc.{CallOptions, ManagedChannel, Metadata, Server, ServerBuilder}
 import monix.eval.Task
 import monix.execution.Scheduler.global
 import monix.reactive.Observable
 import scalapb.monix.grpc.testservice.Request.Scenario
+import scalapb.monix.grpc.testservice.{Request, Response, TestServiceGrpcService}
 
 import scala.concurrent.duration.SECONDS
 
-/**
- * Copyright (C) 11.03.21 - REstore NV
- */
 //Why is there a Ctx needed?
 // we should add Monix to the generator name to avoid collision
-class TestServer extends TestServiceGrpcService[Metadata] with LazyLogging {
+class TestServer() extends TestServiceGrpcService[Metadata] with LazyLogging {
 
   override def unary(request: Request, ctx: Metadata): Task[Response] = {
     logger.info(s"unary: received $request")
@@ -66,6 +64,7 @@ class TestServer extends TestServiceGrpcService[Metadata] with LazyLogging {
       }
       .map(count => Response(s"OK$count"))
   }
+
 }
 
 object TestServer {
@@ -78,13 +77,12 @@ object TestServer {
       .build()
   }
 
-  def monixStub(port: Int): TestServiceGrpcService[Metadata] = {
-    //i leak a channel but it gets killed when the server dies anyway
+  def client(port: Int): (ManagedChannel, TestServiceGrpcService[Metadata]) = {
     val channel = NettyChannelBuilder
       .forAddress("localhost", port)
       .usePlaintext()
       .keepAliveTimeout(2, SECONDS)
       .build()
-    TestServiceGrpcService.stub(channel, CallOptions.DEFAULT)(global)
+    (channel, TestServiceGrpcService.stub(channel, CallOptions.DEFAULT)(global))
   }
 }

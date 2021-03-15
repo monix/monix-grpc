@@ -1,10 +1,6 @@
-package scalapb.monix.grpc
+package scalapb.monix.grpc.testservice
 
-/**
- * Copyright (C) 11.03.21 - REstore NV
- */
-
-package object testservice {
+package object utils {
   case class SilentException() extends RuntimeException("SILENT") {
     override def fillInStackTrace(): Throwable = this
 

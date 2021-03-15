@@ -21,7 +21,7 @@ class ClientCall[Request, Response] private (
     val makeCall = for {
       _ <- start(listener, headers)
       _ <- request(1)
-      _ <- sendMessage(message).doOnFinish(_ => halfClose)
+      _ <- sendMessage(message).guarantee(halfClose)
       response <- listener.waitForResponse
     } yield response
     TaskLocal.isolate(runResponseTaskHandler(makeCall))
@@ -35,7 +35,7 @@ class ClientCall[Request, Response] private (
     val makeCall = for {
       _ <- start(listener, headers)
       _ <- request(1)
-      _ <- sendMessage(message).doOnFinish(_ => halfClose)
+      _ <- sendMessage(message).guarantee(halfClose)
     } yield listener.responses
     runResponseObservableHandler(
       Observable.fromTask(TaskLocal.isolate(makeCall)).flatten
@@ -50,23 +50,19 @@ class ClientCall[Request, Response] private (
     val makeCall = for {
       _ <- start(listener, headers)
       _ <- request(1)
-      //we must start sending the messages and listen for the respons
-      // the message stream should be canceled when the server responds
-      response <- Task.racePair(
-        listener.waitForResponse,
-        messages.mapEval(sendMessage).completedL.doOnFinish(_ => halfClose)
-      )
-      result <- response match {
-        case Left((response, task)) =>
-          Task {
-            task.cancel
-            response
-          }
-        case Right((listeningResponse, _)) => listeningResponse.join
+      runningRequest <- {
+        val clientStream = messages.mapEval(sendMessage).completedL.guarantee(halfClose)
+        Task.racePair(
+          listener.waitForResponse,
+          clientStream
+        )
       }
-    } yield {
-      result
-    }
+      response <- runningRequest match {
+        case Left((response, clientStream)) =>
+          clientStream.cancel.redeem(_ => response, _ => response)
+        case Right((eventualResponse, _)) => eventualResponse.join
+      }
+    } yield response
 
     TaskLocal.isolate(runResponseTaskHandler(makeCall))
   }
@@ -80,7 +76,7 @@ class ClientCall[Request, Response] private (
       _ <- start(listener, headers)
       streamRequests = for {
         _ <- request(1)
-        _ <- messages.mapEval(sendMessage).completedL.doOnFinish(_ => halfClose)
+        _ <- messages.mapEval(sendMessage).completedL.guarantee(halfClose)
       } yield ()
 
       streamRequestsObs = Observable.fromTask(streamRequests).flatMap { _ =>

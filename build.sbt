@@ -42,9 +42,7 @@ lazy val grpcRuntime = project
       "io.grpc" % "grpc-api" % "1.35.0",
       "io.monix" %% "monix" % "3.2.2",
       "com.thesamet.scalapb" %% "scalapb-runtime" % "0.10.8",
-      "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % "0.10.1",
-      "org.slf4j" % "slf4j-api" % "1.7.30",
-      "org.apache.logging.log4j" % "log4j-slf4j-impl" % "2.13.3"
+      "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % "0.10.1"
     )
   )
 
@@ -55,7 +53,6 @@ lazy val grpcCodeGen = projectMatrix
   .settings(releaseSettings)
   .settings(
     name := "monix-grpc-codegen",
-    // So that it can used from sbt 1.x...
     buildInfoKeys := List[BuildInfoKey](name, version, scalaVersion, sbtVersion),
     buildInfoPackage := "monix.grpc.codegen.build",
     name := "monix-grpc-codegen",
@@ -70,7 +67,6 @@ lazy val codeGenJVM212 = grpcCodeGen.jvm(Scala212)
 lazy val protocGenMonixGrpc = protocGenProject("protoc-gen-monix-grpc", codeGenJVM212)
   .settings(releaseSettings)
   .settings(
-    // So that it can used from sbt 1.x...
     scalaVersion := "2.12.12",
     Compile / mainClass := Some("monix.grpc.codegen.GrpcCodeGenerator")
   )
@@ -86,7 +82,9 @@ lazy val e2e = project
       "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion,
       "io.grpc" % "grpc-netty" % "1.36.0",
       "org.scalameta" %% "munit" % "0.7.22",
-      "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2"
+      "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2",
+      "org.slf4j" % "slf4j-api" % "1.7.30",
+      "org.apache.logging.log4j" % "log4j-slf4j-impl" % "2.13.3"
     ),
     testFrameworks += new TestFramework("munit.Framework"),
     PB.targets in Compile := Seq(

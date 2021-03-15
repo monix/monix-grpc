@@ -5,44 +5,16 @@ import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import monix.reactive.subjects.{PublishSubject, ReplaySubject, Subject}
 import munit.Location
+import scalapb.monix.grpc.testservice.utils.SilentException
 
 import java.util.concurrent.TimeoutException
 import scala.concurrent.duration.DurationInt
 
-/**
- * Copyright (C) 11.03.21 - REstore NV
- */
-
-class TestServerCalls extends munit.FunSuite {
-  val stub = new Fixture[TestServiceGrpcService[Metadata]]("server") {
-    private val server: Server = TestServer.createServer(8000)
-    private var client: TestServiceGrpcService[Metadata] = null
-
-    def apply() = client
-
-    override def beforeAll(): Unit = {
-      server.start()
-      client = TestServer.monixStub(8000)
-    }
-
-    override def afterAll(): Unit = {
-      server.shutdown()
-    }
-  }
+class TestServerCalls extends GrpcBaseSpec(8000) {
 
   implicit val opt = Task.defaultOptions.enableLocalContextPropagation
 
-  override def munitFixtures = List(stub)
-
-  private val ok = Response("OK")
-  private val okStream = List(Response("OK1"), Response("OK2"))
-
-  private def expectedException(e: Throwable)(implicit loc: Location) = {
-    assert(e.isInstanceOf[StatusRuntimeException])
-    assertEquals(e.getMessage, "INTERNAL: SILENT")
-  }
-
-  test("unary call success") {
+  test("unary call responds successfully") {
     val client = stub()
     client
       .unary(Request(Request.Scenario.OK), new Metadata())
@@ -52,7 +24,7 @@ class TestServerCalls extends munit.FunSuite {
       .runToFutureOpt
   }
 
-  test("unary call fail") {
+  test("unary call responds with a failure") {
     val client = stub()
     client
       .unary(Request(Request.Scenario.ERROR_NOW), new Metadata())
@@ -63,7 +35,7 @@ class TestServerCalls extends munit.FunSuite {
       .runToFutureOpt
   }
 
-  test("unary call timeout") {
+  test("unary call times out") {
     val client = stub()
     client
       .unary(Request(Request.Scenario.DELAY), new Metadata())
@@ -75,7 +47,7 @@ class TestServerCalls extends munit.FunSuite {
       .runToFutureOpt
   }
 
-  test("serverStream call success") {
+  test("serverStreaming call responds successfully") {
     val client = stub()
     client
       .serverStreaming(Request(Request.Scenario.OK), new Metadata())
@@ -86,7 +58,7 @@ class TestServerCalls extends munit.FunSuite {
       .runToFutureOpt
   }
 
-  test("serverStream call fail") {
+  test("serverStreaming call responds with a failure") {
     val client = stub()
     client
       .serverStreaming(Request(Request.Scenario.ERROR_NOW), new Metadata())
@@ -98,7 +70,7 @@ class TestServerCalls extends munit.FunSuite {
       .runToFutureOpt
   }
 
-  test("serverStream call fail after 2 responses") {
+  test("serverStreaming call responds during the response stream with a failure") {
     val client = stub()
     client
       .serverStreaming(Request(Request.Scenario.ERROR_AFTER), new Metadata())
@@ -112,7 +84,7 @@ class TestServerCalls extends munit.FunSuite {
       .runToFutureOpt
   }
 
-  test("serverStream call timeout") {
+  test("serverStreaming call times out") {
     val client = stub()
     client
       .serverStreaming(Request(Request.Scenario.DELAY), new Metadata())
@@ -125,7 +97,7 @@ class TestServerCalls extends munit.FunSuite {
       .runToFutureOpt
   }
 
-  test("clientStream call success") {
+  test("clientStreaming responds successfully") {
     val client = stub()
     val subject = ReplaySubject[Request]()
 
@@ -138,14 +110,12 @@ class TestServerCalls extends munit.FunSuite {
       _ <- subject.onNext(Request(Request.Scenario.OK))
       _ <- subject.onNext(Request(Request.Scenario.OK))
       _ <- subject.onNext(Request(Request.Scenario.OK))
-    } yield {
-      subject.onComplete()
-    }
+    } yield subject.onComplete()
 
     response
   }
 
-  test("clientStream call fail") {
+  test("clientStreaming call responds with a failure") {
     val client = stub()
     val subject = ReplaySubject[Request]()
 
@@ -162,12 +132,12 @@ class TestServerCalls extends munit.FunSuite {
       _ <- subject.onNext(Request(Request.Scenario.OK))
       _ <- subject.onNext(Request(Request.Scenario.ERROR_NOW))
       _ <- subject.onNext(Request(Request.Scenario.OK))
-    } yield {}
+    } yield ()
 
     response
   }
 
-  test("clientStream gives an exception on the stream should make the task fail") {
+  test("clientStreaming responds with a failure") {
     val client = stub()
     val subject = ReplaySubject[Request]()
 
@@ -183,7 +153,7 @@ class TestServerCalls extends munit.FunSuite {
     response
   }
 
-  test("clientStream call never") {
+  test("clientStreaming call times out") {
     val client = stub()
     val subject = ReplaySubject[Request]()
 
@@ -200,12 +170,12 @@ class TestServerCalls extends munit.FunSuite {
       _ <- subject.onNext(Request(Request.Scenario.OK))
       _ <- subject.onNext(Request(Request.Scenario.OK))
       _ <- subject.onNext(Request(Request.Scenario.DELAY))
-    } yield {}
+    } yield ()
 
     response
   }
 
-  test("biStream call success") {
+  test("bidiStreaming call success") {
     val client = stub()
     val subject = ReplaySubject[Request]()
     val response = client
@@ -216,13 +186,11 @@ class TestServerCalls extends munit.FunSuite {
 
     for {
       _ <- subject.onNext(Request(Request.Scenario.OK))
-    } yield {
-      subject.onComplete()
-    }
+    } yield subject.onComplete()
     response
   }
 
-  test("biStream gives an exception on the stream should make the returned observable fail") {
+  test("bidiStreaming responds with a failure when the client makes the request stream fail") {
     val client = stub()
     val subject = ReplaySubject[Request]()
 
@@ -239,7 +207,7 @@ class TestServerCalls extends munit.FunSuite {
     response
   }
 
-  test("biStream call fail") {
+  test("bidiStreaming call responds with a failure") {
     val client = stub()
     val subject = ReplaySubject[Request]()
     val response = client
@@ -257,7 +225,7 @@ class TestServerCalls extends munit.FunSuite {
     response
   }
 
-  test("biStream call never") {
+  test("bidiStreaming call times out") {
     val client = stub()
     val subject = ReplaySubject[Request]()
     val response = client
@@ -273,5 +241,12 @@ class TestServerCalls extends munit.FunSuite {
     response
   }
 
+  private val ok = Response("OK")
+  private val okStream = List(Response("OK1"), Response("OK2"))
+
+  private def expectedException(e: Throwable)(implicit loc: Location) = {
+    assert(e.isInstanceOf[StatusRuntimeException])
+    assertEquals(e.getMessage, "INTERNAL: SILENT")
+  }
   //todo check if the calls to the server are 'lazy' i.e. if the task is not consumed no call to the server should have been made.
 }
