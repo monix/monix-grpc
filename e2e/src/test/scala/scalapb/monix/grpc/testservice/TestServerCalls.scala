@@ -10,7 +10,9 @@ import scalapb.monix.grpc.testservice.utils.SilentException
 import java.util.concurrent.TimeoutException
 import scala.concurrent.duration.DurationInt
 
-class TestServerCalls extends GrpcBaseSpec(8000) {
+class TestServerCalls extends munit.FunSuite with GrpcServerFixture {
+  val stub = clientFixture(8000)
+  override def munitFixtures = List(stub)
 
   implicit val opt = Task.defaultOptions.enableLocalContextPropagation
 
