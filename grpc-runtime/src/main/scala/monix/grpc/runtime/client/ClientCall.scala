@@ -51,7 +51,17 @@ class ClientCall[Request, Response] private (
       _ <- start(listener, headers)
       _ <- request(1)
       runningRequest <- {
-        val clientStream = messages.mapEval(sendMessage).completedL.guarantee(halfClose)
+        val clientStream = messages
+          .mapEval(message =>
+            if (call.isReady) {
+              sendMessage(message)
+            } else {
+              val waitUntilReady = Task.fromFuture(listener.onReadyEffect.take())
+              waitUntilReady.>>(sendMessage(message))
+            }
+          )
+          .completedL
+          .guarantee(halfClose)
         Task.racePair(
           listener.waitForResponse,
           clientStream
@@ -76,7 +86,17 @@ class ClientCall[Request, Response] private (
       _ <- start(listener, headers)
       streamRequests = for {
         _ <- request(1)
-        _ <- messages.mapEval(sendMessage).completedL.guarantee(halfClose)
+        _ <- messages
+          .mapEval(message =>
+            if (call.isReady) {
+              sendMessage(message)
+            } else {
+              val waitUntilReady = Task.fromFuture(listener.onReadyEffect.take())
+              waitUntilReady.>>(sendMessage(message))
+            }
+          )
+          .completedL
+          .guarantee(halfClose)
       } yield ()
 
       streamRequestsObs = Observable.fromTask(streamRequests).flatMap { _ =>

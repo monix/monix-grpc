@@ -1,13 +1,10 @@
 package monix.grpc.runtime.client
 
 import io.grpc
-
 import monix.eval.Task
 import monix.execution.atomic.Atomic
-import monix.execution.CancelablePromise
+import monix.execution.{AsyncQueue, AsyncVar, CancelablePromise, Scheduler}
 import monix.reactive.Observable
-import monix.execution.AsyncQueue
-import monix.execution.Scheduler
 
 object ClientCallListeners {
   final case class CallStatus(
@@ -31,6 +28,7 @@ object ClientCallListeners {
     private val statusPromise = CancelablePromise[CallStatus]()
     private val headers0 = Atomic(None: Option[grpc.Metadata])
     private val response0 = Atomic(None: Option[Response])
+    val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
 
     def waitForResponse: Task[Response] = {
       Task.fromCancelablePromise(statusPromise).flatMap { callStatus =>
@@ -64,6 +62,8 @@ object ClientCallListeners {
         statusPromise.trySuccess(CallStatus(errStatus, trailers))
       }
     }
+
+    override def onReady(): Unit = onReadyEffect.tryPut(())
   }
 
   final class StreamingClientCallListener[Response](
@@ -74,6 +74,7 @@ object ClientCallListeners {
     private val callStatus0 = CancelablePromise[CallStatus]()
     private val headers0 = Atomic(None: Option[grpc.Metadata])
     private val responses0 = AsyncQueue.unbounded[Option[Response]](None)
+    val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
 
     def responses: Observable[Response] = {
       val pullValue = Task.deferFuture(responses0.poll())
@@ -103,5 +104,7 @@ object ClientCallListeners {
         .guarantee(askForMoreRequests(1))
         .runSyncUnsafe()
     }
+
+    override def onReady() = onReadyEffect.tryPut(())
   }
 }

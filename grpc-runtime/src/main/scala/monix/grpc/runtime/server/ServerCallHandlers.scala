@@ -71,9 +71,8 @@ object ServerCallHandlers {
             if (call.isReady) {
               call.sendMessage(message)
             } else {
-              Task.fromFuture(listener.onReadyEffect.take()).flatMap(_ => call.sendMessage(message))
-               val waitUntilReady = Task.fromFuture(listener.onReadyEffect.take())
-               waitUntilReady.>>(call.sendMessage(message))
+              val waitUntilReady = Task.fromFuture(listener.onReadyEffect.take())
+              waitUntilReady.>>(call.sendMessage(message))
             }
           }
           .completedL
@@ -93,7 +92,7 @@ object ServerCallHandlers {
     private val isCancelled = CancelablePromise[Unit]()
 
     def runUnaryResponseListener(metadata: grpc.Metadata)(
-      sendResponse: T => Task[Unit]
+        sendResponse: T => Task[Unit]
     ): Unit = {
       val handleResponse = for {
         _ <- call.request(1) // Number tells expected request messages
@@ -128,9 +127,8 @@ object ServerCallHandlers {
       }
     }
 
-    override def onReady(): Unit = {
-      onReadyEffect.tryPut(())
-    }
+    override def onReady(): Unit = onReadyEffect.tryPut(())
+
   }
 
   /**
@@ -183,7 +181,17 @@ object ServerCallHandlers {
       val call = ServerCall(grpcCall, options)
       val listener = new StreamingCallListener(call)(scheduler)
       listener.runStreamingResponseListener(metadata) { msgs =>
-        Observable.defer(f(msgs, metadata)).mapEval(call.sendMessage).completedL
+        Observable
+          .defer(f(msgs, metadata))
+          .mapEval { message =>
+            if (call.isReady) {
+              call.sendMessage(message)
+            } else {
+              val waitUntilReady = Task.fromFuture(listener.onReadyEffect.take())
+              waitUntilReady.>>(call.sendMessage(message))
+            }
+          }
+          .completedL
       }
       listener
     }
@@ -195,6 +203,7 @@ object ServerCallHandlers {
       extends grpc.ServerCall.Listener[T] {
     private val isCancelled = CancelablePromise[Unit]()
     private val queue = AsyncQueue.unbounded[Option[T]](None)(scheduler)
+    val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
 
     def runStreamingResponseListener(metadata: grpc.Metadata)(
         sendResponses: Observable[T] => Task[Unit]
@@ -231,6 +240,8 @@ object ServerCallHandlers {
     }
 
     override def onComplete(): Unit = queue.clear()
+
+    override def onReady(): Unit = onReadyEffect.tryPut(())
   }
 
   private def runResponseHandler[T, R](
