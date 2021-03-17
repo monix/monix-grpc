@@ -2,16 +2,16 @@ package scalapb.monix.grpc.testservice.utils
 
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.netty.NettyChannelBuilder
-import io.grpc.{CallOptions, ManagedChannel, Metadata, Server, ServerBuilder}
+import io.grpc._
 import monix.eval.Task
 import monix.execution.Scheduler.global
 import monix.reactive.Observable
 import scalapb.monix.grpc.testservice.Request.Scenario
-import scalapb.monix.grpc.testservice.{Request, Response, TestServiceGrpcService}
+import scalapb.monix.grpc.testservice.{Request, Response, TestService}
 
 import scala.concurrent.duration.SECONDS
 
-class TestServer() extends TestServiceGrpcService[Metadata] with LazyLogging {
+class TestServerImpl() extends TestService[Metadata] with LazyLogging {
 
   override def unary(request: Request, ctx: Metadata): Task[Response] = {
     logger.info(s"unary: received $request")
@@ -68,19 +68,19 @@ class TestServer() extends TestServiceGrpcService[Metadata] with LazyLogging {
 object TestServer {
 
   def createServer(port: Int): Server = {
-    val server = new TestServer()
+    val server = new TestServerImpl()
     ServerBuilder
       .forPort(port)
-      .addService(TestServiceGrpcService.bindService(server)(global))
+      .addService(TestService.bindService(server)(global))
       .build()
   }
 
-  def client(port: Int): (ManagedChannel, TestServiceGrpcService[Metadata]) = {
+  def client(port: Int): (ManagedChannel, TestService[Metadata]) = {
     val channel = NettyChannelBuilder
       .forAddress("localhost", port)
       .usePlaintext()
       .keepAliveTimeout(2, SECONDS)
       .build()
-    (channel, TestServiceGrpcService.stub(channel, CallOptions.DEFAULT)(global))
+    (channel, TestService.stub(channel, CallOptions.DEFAULT)(global))
   }
 }

@@ -6,15 +6,11 @@ import scalapb.monix.grpc.testservice.utils.TestServer
 
 import scala.util.Try
 
-/**
- * Copyright (C) 15.03.21 - REstore NV
- */
-
 trait GrpcServerFixture {
   self: Suite =>
-  def clientFixture(port: Int) = new Fixture[TestServiceGrpcService[Metadata]]("server") {
+  def clientFixture(port: Int) = new Fixture[TestService[Metadata]]("server") {
     private val server: Server = TestServer.createServer(port)
-    private var client: TestServiceGrpcService[Metadata] = null
+    private var client: TestService[Metadata] = null
     private var channel: ManagedChannel = null
 
     def apply() = client
