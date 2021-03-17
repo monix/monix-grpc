@@ -11,8 +11,6 @@ import scalapb.monix.grpc.testservice.{Request, Response, TestServiceGrpcService
 
 import scala.concurrent.duration.SECONDS
 
-//Why is there a Ctx needed?
-// we should add Monix to the generator name to avoid collision
 class TestServer() extends TestServiceGrpcService[Metadata] with LazyLogging {
 
   override def unary(request: Request, ctx: Metadata): Task[Response] = {
