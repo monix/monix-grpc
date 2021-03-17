@@ -20,15 +20,15 @@ class TestBackpressure extends munit.FunSuite with GrpcServerFixture {
   test("bidi stream calls should backpressure on client side") {
     val client = stub()
 
-    val requests = Observable
-      .repeat(request)
-      .take(rCount)
-      .doOnNext(x => Task(print(x)))
-
-    client
-      .bidiStreaming(requests, new Metadata())
-      .completedL
-      .runToFuture(global)
+//    val requests = Observable
+//      .repeat(request)
+//      .take(rCount)
+//      .doOnNext(x => Task(print(x)))
+//
+//    client
+//      .bidiStreaming(requests, new Metadata())
+//      .completedL
+//      .runToFuture(global)
   }
 
   test("bidi stream calls should backpressure on server side") {
