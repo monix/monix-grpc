@@ -4,7 +4,14 @@ import cats.effect.ExitCase
 import io.grpc
 import monix.eval.{Task, TaskLocal}
 import monix.execution.atomic.AtomicAny
-import monix.execution.{AsyncQueue, AsyncVar, CancelablePromise, Scheduler}
+import monix.execution.{
+  AsyncQueue,
+  AsyncVar,
+  BufferCapacity,
+  CancelablePromise,
+  ChannelType,
+  Scheduler
+}
 import monix.reactive.{Observable, OverflowStrategy}
 
 /**
@@ -67,8 +74,6 @@ object ServerCallHandlers {
       listener.runUnaryResponseListener(metadata) { msg =>
         Observable
           .defer(f(msg, metadata))
-          //todo make configurable
-          .asyncBoundary(OverflowStrategy.BackPressure(100))
           .mapEval { message =>
             if (call.isReady) {
               call.sendMessage(message)
@@ -93,7 +98,9 @@ object ServerCallHandlers {
     private val completed = CancelablePromise[grpc.Status]()
     private val isCancelled = CancelablePromise[Unit]()
 
-    def runUnaryResponseListener(metadata: grpc.Metadata)(
+    def runUnaryResponseListener(
+        metadata: grpc.Metadata
+    )(
         sendResponse: T => Task[Unit]
     ): Unit = {
       val handleResponse = for {
@@ -154,7 +161,7 @@ object ServerCallHandlers {
         metadata: grpc.Metadata
     ): grpc.ServerCall.Listener[T] = {
       val call = ServerCall(grpcCall, options)
-      val listener = new StreamingCallListener(call)(scheduler)
+      val listener = new StreamingCallListener(call, options.bufferCapacity)(scheduler)
       listener.runStreamingResponseListener(metadata) { msgs =>
         Task.defer(f(msgs, metadata)).flatMap(call.sendMessage)
       }
@@ -182,12 +189,10 @@ object ServerCallHandlers {
         metadata: grpc.Metadata
     ): grpc.ServerCall.Listener[T] = {
       val call = ServerCall(grpcCall, options)
-      val listener = new StreamingCallListener(call)(scheduler)
+      val listener = new StreamingCallListener(call, options.bufferCapacity)(scheduler)
       listener.runStreamingResponseListener(metadata) { msgs =>
         Observable
           .defer(f(msgs, metadata))
-          //todo make configurable
-          .asyncBoundary(OverflowStrategy.BackPressure(100))
           .mapEval { message =>
             if (call.isReady) {
               call.sendMessage(message)
@@ -203,14 +208,18 @@ object ServerCallHandlers {
   }
 
   private final class StreamingCallListener[T, R](
-      call: ServerCall[T, R]
-  )(implicit scheduler: Scheduler)
-      extends grpc.ServerCall.Listener[T] {
+      call: ServerCall[T, R],
+      capacity: BufferCapacity
+  )(implicit
+      scheduler: Scheduler
+  ) extends grpc.ServerCall.Listener[T] {
     private val isCancelled = CancelablePromise[Unit]()
-    private val queue = AsyncQueue.bounded[Option[T]](128)(scheduler)
+    private val queue = AsyncQueue.withConfig[Option[T]](capacity, ChannelType.SPSC)(scheduler)
     val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
 
-    def runStreamingResponseListener(metadata: grpc.Metadata)(
+    def runStreamingResponseListener(
+        metadata: grpc.Metadata
+    )(
         sendResponses: Observable[T] => Task[Unit]
     ): Unit = {
       val handleResponse = for {
@@ -220,6 +229,7 @@ object ServerCallHandlers {
           val pullValue = Task.deferFuture(queue.poll())
           Observable
             .repeatEvalF(pullValue)
+            .doOnNext(_ => call.request(1))
             .takeWhile(_.isDefined)
             .flatMap(elem => Observable.fromIterable(elem))
         }
@@ -238,12 +248,7 @@ object ServerCallHandlers {
       Task.deferFuture(queue.offer(None)).runSyncUnsafe()
 
     override def onMessage(msg: T): Unit = {
-      println(s"received $msg")
-      val processMessage = for {
-        _ <- call.request(1)
-        _ <- Task.deferFuture(queue.offer(Some(msg)))
-      } yield ()
-      processMessage.runSyncUnsafe()
+      Task.deferFuture(queue.offer(Some(msg))).runSyncUnsafe()
     }
 
     override def onComplete(): Unit = queue.clear()

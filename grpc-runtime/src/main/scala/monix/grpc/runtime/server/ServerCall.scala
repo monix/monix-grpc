@@ -2,6 +2,7 @@ package monix.grpc.runtime.server
 
 import io.grpc
 import monix.eval.Task
+import monix.execution.BufferCapacity
 
 // TODO: Add attributes, compression, message compression.
 class ServerCall[Request, Response] private (
@@ -47,22 +48,29 @@ object ServerCall {
 }
 
 abstract class ServerCallOptions private (
-    val compressor: Option[ServerCompressor]
+    val compressor: Option[ServerCompressor],
+    val bufferCapacity: BufferCapacity
 ) {
-  def copy(
-      compressor: Option[ServerCompressor] = this.compressor
-  ): ServerCallOptions = new ServerCallOptions(compressor) {}
+  //needs to be private for binary compatibility
+  private def copy(
+      compressor: Option[ServerCompressor] = this.compressor,
+      bufferCapacity: BufferCapacity
+  ): ServerCallOptions = new ServerCallOptions(compressor, bufferCapacity) {}
 
   def withServerCompressor(
       compressor: Option[ServerCompressor]
-  ): ServerCallOptions = copy(compressor)
+  ): ServerCallOptions = copy(compressor, bufferCapacity)
+
+  def withServerCompressor(
+      bufferCapacity: BufferCapacity
+  ): ServerCallOptions = copy(compressor, bufferCapacity)
 }
 
 object ServerCallOptions {
   val default: ServerCallOptions =
-    new ServerCallOptions(Some(GzipCompressor)) {}
+    new ServerCallOptions(Some(GzipCompressor), BufferCapacity.Bounded(128)) {}
 }
 
-sealed abstract class ServerCompressor(val name: String) extends Product with Serializable
+abstract sealed class ServerCompressor(val name: String) extends Product with Serializable
 
 case object GzipCompressor extends ServerCompressor("gzip")

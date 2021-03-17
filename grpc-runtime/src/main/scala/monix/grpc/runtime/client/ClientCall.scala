@@ -1,19 +1,17 @@
 package monix.grpc.runtime.client
 
 import io.grpc
-
 import monix.eval.Task
 import cats.effect.ExitCase
-import monix.execution.Scheduler
+import monix.execution.{BufferCapacity, Cancelable, Scheduler}
 import monix.reactive.Observable
 import monix.reactive.OverflowStrategy
-import monix.execution.Cancelable
 import monix.eval.TaskLocal
 
 class ClientCall[Request, Response] private (
-    call: grpc.ClientCall[Request, Response]
+    call: grpc.ClientCall[Request, Response],
+    bufferCapacity: BufferCapacity
 ) {
-
 
   def unaryToUnaryCall(
       message: Request,
@@ -26,22 +24,27 @@ class ClientCall[Request, Response] private (
       _ <- sendMessage(message).guarantee(halfClose)
       response <- listener.waitForResponse
     } yield response
-    TaskLocal.isolate(runResponseTaskHandler(makeCall))
+    TaskLocal
+      .isolate(runResponseTaskHandler(makeCall))
       .executeWithOptions(_.enableLocalContextPropagation)
   }
 
   def unaryToStreamingCall(
       message: Request,
       headers: grpc.Metadata
-  )(implicit scheduler: Scheduler): Observable[Response] = Observable.defer {
-    val listener = ClientCallListeners.streaming[Response](request)
+  )(implicit
+      scheduler: Scheduler
+  ): Observable[Response] = Observable.defer {
+    val listener = ClientCallListeners.streaming[Response](bufferCapacity, request)
     val makeCall = for {
       _ <- start(listener, headers)
       _ <- request(1)
       _ <- sendMessage(message).guarantee(halfClose)
     } yield listener.responses
     runResponseObservableHandler(
-      Observable.fromTask(TaskLocal.isolate(makeCall).executeWithOptions(_.enableLocalContextPropagation)).flatten
+      Observable
+        .fromTask(TaskLocal.isolate(makeCall).executeWithOptions(_.enableLocalContextPropagation))
+        .flatten
     )
   }
 
@@ -55,8 +58,6 @@ class ClientCall[Request, Response] private (
       _ <- request(1)
       runningRequest <- {
         val clientStream = messages
-          //todo make configurable
-          .asyncBoundary(OverflowStrategy.BackPressure(100))
           .mapEval(message =>
             if (call.isReady) {
               sendMessage(message)
@@ -79,21 +80,23 @@ class ClientCall[Request, Response] private (
       }
     } yield response
 
-    TaskLocal.isolate(runResponseTaskHandler(makeCall)).executeWithOptions(_.enableLocalContextPropagation)
+    TaskLocal
+      .isolate(runResponseTaskHandler(makeCall))
+      .executeWithOptions(_.enableLocalContextPropagation)
   }
 
   def streamingToStreamingCall(
       messages: Observable[Request],
       headers: grpc.Metadata
-  )(implicit scheduler: Scheduler): Observable[Response] = Observable.defer {
-    val listener = ClientCallListeners.streaming[Response](request)
+  )(implicit
+      scheduler: Scheduler
+  ): Observable[Response] = Observable.defer {
+    val listener = ClientCallListeners.streaming[Response](bufferCapacity, request)
     val makeCall = for {
       _ <- start(listener, headers)
       streamRequests = for {
         _ <- request(1)
         _ <- messages
-          //todo make configurable
-          .asyncBoundary(OverflowStrategy.BackPressure(100))
           .mapEval(message =>
             if (call.isReady) {
               sendMessage(message)
@@ -115,7 +118,9 @@ class ClientCall[Request, Response] private (
       }
     } yield Observable(listener.responses, streamRequestsObs).merge
     runResponseObservableHandler(
-      Observable.fromTask(TaskLocal.isolate(makeCall).executeWithOptions(_.enableLocalContextPropagation)).flatten
+      Observable
+        .fromTask(TaskLocal.isolate(makeCall).executeWithOptions(_.enableLocalContextPropagation))
+        .flatten
     )
   }
 
@@ -145,12 +150,10 @@ class ClientCall[Request, Response] private (
   ): Task[Unit] = Task(call.start(listener, headers))
 
   private def request(numMessages: Int): Task[Unit] = {
-    println(s"asking more $numMessages")
     Task(call.request(numMessages))
   }
 
   private def sendMessage(message: Request): Task[Unit] = {
-    println(s"sending $message ${call.isReady}")
     Task(call.sendMessage(message))
   }
 
@@ -167,6 +170,9 @@ object ClientCall {
       methodDescriptor: grpc.MethodDescriptor[Request, Response],
       callOptions: grpc.CallOptions
   ): ClientCall[Request, Response] = {
-    new ClientCall(channel.newCall[Request, Response](methodDescriptor, callOptions))
+    new ClientCall(
+      channel.newCall[Request, Response](methodDescriptor, callOptions),
+      BufferCapacity.Bounded(128)
+    )
   }
 }

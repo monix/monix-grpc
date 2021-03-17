@@ -13,15 +13,22 @@ import scala.concurrent.duration.DurationInt
 
 class TestBackpressure extends munit.FunSuite with GrpcServerFixture {
   val stub = clientFixture(8002)
+  val request = Request(Scenario.SLOW, Array.fill(1000)(1.toInt))
+
   override def munitFixtures = List(stub)
-  val rCount = 1000000000
+  val rCount = 200
   test("bidi stream calls should backpressure on client side") {
     val client = stub()
-    val counter = AtomicInt(0)
-    val requests = Observable.repeat(1).take(rCount).doOnNext(_=> Task{
-      println(s"currentCount ${counter.getAndAdd(1)}")
-    })
-    client.bidiStreaming(requests .map(_ => Request(Scenario.SLOW, Seq.fill(1000)(1))), new Metadata()).completedL.runToFuture(global)
+
+    val requests = Observable
+      .repeat(request)
+      .take(rCount)
+      .doOnNext(x => Task(print(x)))
+
+    client
+      .bidiStreaming(requests, new Metadata())
+      .completedL
+      .runToFuture(global)
   }
 
   test("bidi stream calls should backpressure on server side") {

@@ -6,7 +6,6 @@ import monix.execution.ChannelType.SPSC
 import monix.execution.atomic.Atomic
 import monix.execution.{AsyncQueue, AsyncVar, BufferCapacity, CancelablePromise, Scheduler}
 import monix.reactive.Observable
-import monix.reactive.OverflowStrategy.BackPressure
 
 object ClientCallListeners {
   final case class CallStatus(
@@ -22,9 +21,12 @@ object ClientCallListeners {
     new UnaryClientCallListener()
 
   def streaming[R](
-      askForMoreRequests: Int => Task[Unit]
-  )(implicit scheduler: Scheduler): StreamingClientCallListener[R] =
-    new StreamingClientCallListener(askForMoreRequests)
+      bufferCapacity: BufferCapacity,
+      request: Int => Task[Unit]
+  )(implicit
+      scheduler: Scheduler
+  ): StreamingClientCallListener[R] =
+    new StreamingClientCallListener(bufferCapacity, request)
 
   final class UnaryClientCallListener[Response] extends grpc.ClientCall.Listener[Response] {
     private val statusPromise = CancelablePromise[CallStatus]()
@@ -69,23 +71,21 @@ object ClientCallListeners {
   }
 
   final class StreamingClientCallListener[Response](
-      askForMoreRequests: Int => Task[Unit]
+      bufferCapacity: BufferCapacity,
+      request: Int => Task[Unit]
   )(implicit
       scheduler: Scheduler
   ) extends grpc.ClientCall.Listener[Response] {
     private val callStatus0 = CancelablePromise[CallStatus]()
     private val headers0 = Atomic(None: Option[grpc.Metadata])
-    private val responses0 = AsyncQueue.withConfig[Option[Response]](BufferCapacity.Bounded(128), SPSC)
+    private val responses0 = AsyncQueue.withConfig[Option[Response]](bufferCapacity, SPSC)
     val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
 
     def responses: Observable[Response] = {
       Observable
-        .repeatEvalF(responses0.drain(1, 128))
-        .asyncBoundary(BackPressure(2))
-        .takeWhileInclusive(_.forall(_.isDefined))
-        .map(_.flatten)
-      //we should only ask for more messages once the batch is done processing.
-        .doOnNext(x => askForMoreRequests(64))
+        .repeatEvalF(Task.deferFuture(responses0.poll()))
+        .takeWhile(_.isDefined)
+        .doOnNext(_ => request(1))
         .flatMap(elems => Observable.fromIterable(elems))
         .doOnComplete(
           Task.fromCancelablePromise(callStatus0).flatMap { status =>
@@ -104,7 +104,6 @@ object ClientCallListeners {
     }
 
     override def onMessage(message: Response): Unit = {
-      println(s"received $message")
       Task
         .deferFuture(responses0.offer(Some(message)))
         .runSyncUnsafe()
