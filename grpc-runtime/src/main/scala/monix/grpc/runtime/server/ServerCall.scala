@@ -17,8 +17,9 @@ class ServerCall[Request, Response] private (
   def sendHeaders(headers: grpc.Metadata): Task[Unit] =
     handleError(Task(call.sendHeaders(headers)), s"Failed to send headers!", headers)
 
-  def sendMessage(message: Response): Task[Unit] =
+  def sendMessage(message: Response): Task[Unit] = {
     handleError(Task(call.sendMessage(message)), s"Failed to send message $message!")
+  }
 
   def closeStream(status: grpc.Status, trailers: grpc.Metadata): Task[Unit] =
     Task.delay(call.close(status, trailers))
@@ -68,7 +69,7 @@ abstract class ServerCallOptions private (
 
 object ServerCallOptions {
   val default: ServerCallOptions =
-    new ServerCallOptions(Some(GzipCompressor), BufferCapacity.Bounded(128)) {}
+    new ServerCallOptions(Some(GzipCompressor), BufferCapacity.Bounded(32)) {}
 }
 
 abstract sealed class ServerCompressor(val name: String) extends Product with Serializable

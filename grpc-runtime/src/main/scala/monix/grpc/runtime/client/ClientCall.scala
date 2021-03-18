@@ -8,6 +8,8 @@ import monix.reactive.Observable
 import monix.reactive.OverflowStrategy
 import monix.eval.TaskLocal
 
+import java.time.Instant
+
 class ClientCall[Request, Response] private (
     call: grpc.ClientCall[Request, Response],
     bufferCapacity: BufferCapacity
@@ -86,41 +88,33 @@ class ClientCall[Request, Response] private (
   }
 
   def streamingToStreamingCall(
-      messages: Observable[Request],
+      requests: Observable[Request],
       headers: grpc.Metadata
   )(implicit
       scheduler: Scheduler
-  ): Observable[Response] = Observable.defer {
+  ): Observable[Response] = {
     val listener = ClientCallListeners.streaming[Response](bufferCapacity, request)
     val makeCall = for {
       _ <- start(listener, headers)
-      streamRequests = for {
-        _ <- request(1)
-        _ <- messages
-          .mapEval(message =>
+      _ <- request(1)
+      requestStream <-
+        requests
+          .mapEval(requests =>
             if (call.isReady) {
-              sendMessage(message)
+              sendMessage(requests)
             } else {
               val waitUntilReady = Task.fromFuture(listener.onReadyEffect.take())
-              waitUntilReady.>>(sendMessage(message))
+              waitUntilReady.>>(sendMessage(requests))
             }
           )
-          .completedL
           .guarantee(halfClose)
-      } yield ()
+          .completedL
+    } yield requestStream
 
-      streamRequestsObs = Observable.fromTask(streamRequests).flatMap { _ =>
-        // Trick to create an `Observable[Nothing]` so that merge below works
-        Observable.create[Nothing](OverflowStrategy.Unbounded) { sub =>
-          sub.onComplete()
-          Cancelable.empty
-        }
-      }
-    } yield Observable(listener.responses, streamRequestsObs).merge
     runResponseObservableHandler(
-      Observable
-        .fromTask(TaskLocal.isolate(makeCall).executeWithOptions(_.enableLocalContextPropagation))
-        .flatten
+      listener.responses.doOnSubscribe(
+        TaskLocal.isolate(makeCall).executeWithOptions(_.enableLocalContextPropagation)
+      )
     )
   }
 
@@ -172,7 +166,7 @@ object ClientCall {
   ): ClientCall[Request, Response] = {
     new ClientCall(
       channel.newCall[Request, Response](methodDescriptor, callOptions),
-      BufferCapacity.Bounded(128)
+      BufferCapacity.Bounded(32)
     )
   }
 }

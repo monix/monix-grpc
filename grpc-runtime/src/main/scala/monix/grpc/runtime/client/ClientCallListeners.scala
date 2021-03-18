@@ -86,7 +86,7 @@ object ClientCallListeners {
         .repeatEvalF(Task.deferFuture(responses0.poll()))
         .takeWhile(_.isDefined)
         .doOnNext(_ => request(1))
-        .flatMap(elems => Observable.fromIterable(elems))
+        .map(elems => elems.get)
         .doOnComplete(
           Task.fromCancelablePromise(callStatus0).flatMap { status =>
             if (status.isOk) Task.unit

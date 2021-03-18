@@ -31,7 +31,7 @@ class ClientCallListenersTest extends FunSuite {
   test("a streaming call onMessage blocks when the queue is full") {
     val listener = ClientCallListeners.streaming[Long](BufferCapacity.Bounded(8), _ => Task(()))
     Observable
-      .unfold(1)(s => Some(s, s + 1))
+      .unfold(1)(s => Some(s -> (s + 1)))
       .mapEval { m =>
         Task
           .apply {
@@ -53,7 +53,8 @@ class ClientCallListenersTest extends FunSuite {
   test("a streaming request, request a new element after an element is consumed from the queue") {
     val requestCount = AtomicInt(0)
     val listener =
-      ClientCallListeners.streaming[Int](BufferCapacity.Bounded(8), c => Task(requestCount.transform(_ + c)))
+      ClientCallListeners
+        .streaming[Int](BufferCapacity.Bounded(8), c => Task(requestCount.transform(_ + c)))
 
     listener.onMessage(1)
     listener.onMessage(2)

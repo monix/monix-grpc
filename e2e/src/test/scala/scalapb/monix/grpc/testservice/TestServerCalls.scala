@@ -21,7 +21,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture {
     client
       .unary(Request(Request.Scenario.OK), new Metadata())
       .map { r =>
-        assertEquals(r, ok)
+        assertEquals(r.out, 1)
       }
       .runToFutureOpt
   }
@@ -55,7 +55,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture {
       .serverStreaming(Request(Request.Scenario.OK), new Metadata())
       .toListL
       .map { r =>
-        assertEquals(r, okStream)
+        assert(r.map(_.out) == Seq(1, 2))
       }
       .runToFutureOpt
   }
@@ -80,8 +80,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture {
       .onErrorHandle(Left(_))
       .toListL
       .map { responses =>
-        assertEquals(responses.take(2).map(_.right.get), okStream)
-        assertEquals(responses.take(2).map(_.right.get), okStream)
+        assert(responses.take(2).map(_.right.get.out) == Seq(1, 2))
       }
       .runToFutureOpt
   }
@@ -105,7 +104,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture {
 
     def response = client
       .clientStreaming(subject, new Metadata())
-      .map(r => assertEquals(r, Response("OK3")))
+      .map(r => assertEquals(r.out, 3))
       .runToFutureOpt
 
     for {
@@ -183,7 +182,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture {
     val response = client
       .bidiStreaming(subject, new Metadata())
       .toListL
-      .map(r => assertEquals(r, List(Response("OK1"))))
+      .map(r => assertEquals(r.map(_.out), List(1)))
       .runToFutureOpt
 
     for {
@@ -242,9 +241,6 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture {
 
     response
   }
-
-  private val ok = Response("OK")
-  private val okStream = List(Response("OK1"), Response("OK2"))
 
   private def expectedException(e: Throwable)(implicit loc: Location) = {
     assert(e.isInstanceOf[StatusRuntimeException])
