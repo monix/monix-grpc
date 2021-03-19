@@ -1,11 +1,8 @@
 package scalapb.monix.grpc.testservice.utils
 
-import com.typesafe.scalalogging.LazyLogging
-import io.grpc.netty.{NettyChannelBuilder, NettyServerBuilder}
+import com.typesafe.scalalogging.{LazyLogging, Logger}
 import io.grpc._
-import io.netty.channel.local.LocalServerChannel
-import io.netty.channel.socket.nio.NioServerSocketChannel
-import io.netty.channel.{ChannelFactory, ServerChannel}
+import io.grpc.netty.{NettyChannelBuilder, NettyServerBuilder}
 import monix.eval.Task
 import monix.execution.Scheduler.global
 import monix.reactive.Observable
@@ -15,7 +12,7 @@ import scalapb.monix.grpc.testservice.{Request, Response, TestServiceGrpcService
 import java.time.Instant
 import scala.concurrent.duration.{DurationInt, SECONDS}
 
-class TestServer() extends TestServiceGrpcService[Metadata] with LazyLogging {
+class TestServer(logger: Logger) extends TestServiceGrpcService[Metadata] {
 
   override def unary(request: Request, ctx: Metadata): Task[Response] = {
     logger.info(s"unary: received $request")
@@ -83,12 +80,12 @@ class TestServer() extends TestServiceGrpcService[Metadata] with LazyLogging {
               .delay(
                 previousResponse.map(r => Response(r.out + 1, Instant.now().toEpochMilli, Seq()))
               )
-              .delayExecution(10.milli)
+              .delayResult(10.milli)
           case Scenario.BACK_PRESSURE =>
             Task(
               previousResponse.last.flatMap(r =>
                 Observable
-                  .unfold(r.out)(idx =>
+                  .unfold(r.out + 1)(idx =>
                     Some(r.copy(out = idx, Instant.now().toEpochMilli) -> (idx + 1))
                   )
                   .take(req.backPressureResponses)
@@ -105,8 +102,8 @@ class TestServer() extends TestServiceGrpcService[Metadata] with LazyLogging {
 
 object TestServer {
 
-  def createServer(port: Int): Server = {
-    val server = new TestServer()
+  def createServer(port: Int, logger: Logger): Server = {
+    val server = new TestServer(logger)
     NettyServerBuilder
       .forPort(port)
       .addService(TestServiceGrpcService.bindService(server)(global))

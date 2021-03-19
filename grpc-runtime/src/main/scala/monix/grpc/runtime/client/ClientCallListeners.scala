@@ -2,10 +2,10 @@ package monix.grpc.runtime.client
 
 import io.grpc
 import monix.eval.Task
-import monix.execution.ChannelType.SPSC
 import monix.execution.atomic.Atomic
-import monix.execution.{AsyncQueue, AsyncVar, BufferCapacity, CancelablePromise, Scheduler}
-import monix.reactive.Observable
+import monix.execution.{AsyncVar, BufferCapacity, CancelablePromise, Scheduler}
+import monix.reactive.subjects.ConcurrentSubject
+import monix.reactive.{MulticastStrategy, Observable, OverflowStrategy}
 
 object ClientCallListeners {
   final case class CallStatus(
@@ -78,12 +78,13 @@ object ClientCallListeners {
   ) extends grpc.ClientCall.Listener[Response] {
     private val callStatus0 = CancelablePromise[CallStatus]()
     private val headers0 = Atomic(None: Option[grpc.Metadata])
-    private val responses0 = AsyncQueue.withConfig[Option[Response]](bufferCapacity, SPSC)
+    private val responses0 =
+      ConcurrentSubject[Option[Response]](MulticastStrategy.replay, OverflowStrategy.Fail(4))
+
     val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
 
     def responses: Observable[Response] = {
-      Observable
-        .repeatEvalF(Task.deferFuture(responses0.poll()))
+      responses0
         .takeWhile(_.isDefined)
         .doOnNext(_ => request(1))
         .map(elems => elems.get)
@@ -95,18 +96,17 @@ object ClientCallListeners {
         )
     }
 
-    override def onHeaders(headers: grpc.Metadata): Unit =
+    override def onHeaders(headers: grpc.Metadata): Unit = {
       headers0.compareAndSet(None, Some(headers))
+    }
 
     override def onClose(status: grpc.Status, trailers: grpc.Metadata): Unit = {
       callStatus0.trySuccess(CallStatus(status, trailers))
-      Task.deferFuture(responses0.offer(None)).runSyncUnsafe()
+      Task.deferFuture(responses0.onNext(None)).runSyncUnsafe()
     }
 
     override def onMessage(message: Response): Unit = {
-      Task
-        .deferFuture(responses0.offer(Some(message)))
-        .runSyncUnsafe()
+      Task.deferFuture(responses0.onNext(Some(message))).runSyncUnsafe()
     }
 
     override def onReady() = onReadyEffect.tryPut(())

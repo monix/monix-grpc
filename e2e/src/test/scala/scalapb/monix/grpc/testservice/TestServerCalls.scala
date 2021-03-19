@@ -1,5 +1,6 @@
 package scalapb.monix.grpc.testservice
 
+import com.typesafe.scalalogging.LazyLogging
 import io.grpc.{Metadata, Server, StatusRuntimeException}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -10,8 +11,8 @@ import scalapb.monix.grpc.testservice.utils.SilentException
 import java.util.concurrent.TimeoutException
 import scala.concurrent.duration.DurationInt
 
-class TestServerCalls extends munit.FunSuite with GrpcServerFixture {
-  val stub = clientFixture(8000)
+class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLogging {
+  val stub = clientFixture(8000, logger)
   override def munitFixtures = List(stub)
 
   implicit val opt = Task.defaultOptions.enableLocalContextPropagation
@@ -216,7 +217,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture {
       .toListL
       .redeem(
         expectedException,
-        r => fail(s"The server should not return a response $r")
+        r => assertEquals(r.size, 2)
       )
       .runToFutureOpt
 

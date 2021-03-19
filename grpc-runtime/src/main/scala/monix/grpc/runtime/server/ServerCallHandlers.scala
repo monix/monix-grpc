@@ -12,7 +12,8 @@ import monix.execution.{
   ChannelType,
   Scheduler
 }
-import monix.reactive.{Observable, OverflowStrategy}
+import monix.reactive.subjects.ConcurrentSubject
+import monix.reactive.{MulticastStrategy, Observable, OverflowStrategy}
 
 import java.time.Instant
 
@@ -106,7 +107,10 @@ object ServerCallHandlers {
         sendResponse: T => Task[Unit]
     ): Unit = {
       val handleResponse = for {
-        _ <- call.request(1) // Number tells expected request messages
+        // We expect only 1 request, but we ask for 2 requests here so that if a misbehaving client
+        // sends more than 1 requests, ServerCall will catch it. Note that disabling auto
+        // inbound flow control has no effect on unary calls.
+        _ <- call.request(2)
         _ <- Task.fromCancelablePromise(completed)
         _ <- call.sendHeaders(metadata)
         _ <- requestMsg.get() match {
@@ -219,8 +223,8 @@ object ServerCallHandlers {
       scheduler: Scheduler
   ) extends grpc.ServerCall.Listener[Request] {
     private val isCancelled = CancelablePromise[Unit]()
-    private val queue =
-      AsyncQueue.withConfig[Option[Request]](capacity, ChannelType.SPSC)(scheduler)
+    private val subject =
+      ConcurrentSubject[Option[Request]](MulticastStrategy.replay, OverflowStrategy.Fail(4))
     val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
 
     def runStreamingResponseListener(
@@ -232,9 +236,7 @@ object ServerCallHandlers {
         _ <- call.request(1) // Number tells expected request messages
         _ <- call.sendHeaders(metadata)
         _ <- sendResponses {
-          val pullValue = Task.deferFuture(queue.poll())
-          Observable
-            .repeatEvalF(pullValue)
+          subject
             .doOnNext(_ => call.request(1))
             .takeWhile(_.isDefined)
             .map(elem => elem.get)
@@ -252,13 +254,13 @@ object ServerCallHandlers {
       isCancelled.trySuccess(())
 
     override def onHalfClose(): Unit =
-      Task.deferFuture(queue.offer(None)).runSyncUnsafe()
+      Task.deferFuture(subject.onNext(None)).runSyncUnsafe()
 
     override def onMessage(msg: Request): Unit = {
-      Task.deferFuture(queue.offer(Some(msg))).runSyncUnsafe()
+      Task.deferFuture(subject.onNext(Some(msg))).runSyncUnsafe()
     }
 
-    override def onComplete(): Unit = queue.clear()
+    override def onComplete(): Unit = subject.onComplete()
 
     override def onReady(): Unit = onReadyEffect.tryPut(())
   }

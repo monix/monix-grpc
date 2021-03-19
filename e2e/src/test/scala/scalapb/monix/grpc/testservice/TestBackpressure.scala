@@ -3,21 +3,19 @@ package scalapb.monix.grpc.testservice
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Metadata
 import monix.eval.Task
-import monix.execution.{ExecutionModel, Scheduler}
+import monix.execution.Scheduler.Implicits.global
 import monix.reactive.subjects.ConcurrentSubject
 import monix.reactive.{MulticastStrategy, Observable}
 import scalapb.monix.grpc.testservice.Request.Scenario
 
 import java.time.Instant
-import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration.DurationInt
 
 class TestBackpressure extends munit.FunSuite with GrpcServerFixture with LazyLogging {
-  val stub = clientFixture(8002)
+  val stub = clientFixture(8002, logger)
   val request = Request(Scenario.OK, requestCount, Seq.fill(10000)(1))
 
   override def munitFixtures = List(stub)
-  implicit val scheduler = Scheduler(global, executionModel = ExecutionModel.AlwaysAsyncExecution)
 
   val requestCount = 400
   val slowTask = Task().delayResult(10.milli)
@@ -27,7 +25,7 @@ class TestBackpressure extends munit.FunSuite with GrpcServerFixture with LazyLo
     .take(requestCount)
     .map(_ => request.copy(scenario = scenario))
 
-  val expectedAverageResponseTime = 7
+  val expectedAverageResponseTime = 6
 
   test("bidi stream calls should backpressure on client side".tag(Slow)) {
     val client = stub()
@@ -38,6 +36,7 @@ class TestBackpressure extends munit.FunSuite with GrpcServerFixture with LazyLo
 
     client
       .bidiStreaming(requestStream, new Metadata())
+      .doOnNext(m => Task(logger.debug(s"received response ${m.out}")))
       .completedL
       .runToFuture
       .onComplete(_ => subject.onComplete())
@@ -46,7 +45,7 @@ class TestBackpressure extends munit.FunSuite with GrpcServerFixture with LazyLo
       .map(_.toEpochMilli)
       .toListL
       .map { events =>
-        assert(averageEventDuration(events) > expectedAverageResponseTime)
+        assert(clue(averageEventDuration(events)) >= clue(expectedAverageResponseTime))
       }
       .runToFuture
   }
@@ -56,18 +55,16 @@ class TestBackpressure extends munit.FunSuite with GrpcServerFixture with LazyLo
 
     client
       .bidiStreaming(
-        requests(Scenario.OK),
+        requests(Scenario.BACK_PRESSURE).map(_.withBackPressureResponses(5)).take(requestCount / 5),
         new Metadata()
       )
-      .doOnNext(x => Task(println(s"got message ${x.out}")))
-      .mapEval(r => slowTask.*>(slowTask).map(_ => r))
+      .doOnNext(x => Task(logger.debug(s"received response ${x.out}")))
+      .mapEval(r => slowTask.map(_ => r))
       .map(_.timestamp)
       .toListL
       .map { events =>
-        val averageEvent = averageEventDuration(events)
         assert(
-          averageEvent > expectedAverageResponseTime,
-          s"$averageEvent the server produced the events too fast"
+          clue(averageEventDuration(events)) >= clue(expectedAverageResponseTime)
         )
       }
       .runToFuture
@@ -89,10 +86,8 @@ class TestBackpressure extends munit.FunSuite with GrpcServerFixture with LazyLo
       .map(_.toEpochMilli)
       .toListL
       .map { events =>
-        val averageEvent = averageEventDuration(events)
         assert(
-          averageEvent > expectedAverageResponseTime,
-          s"$averageEvent the client produced the messages too fast"
+          clue(averageEventDuration(events)) >= clue(expectedAverageResponseTime)
         )
       }
       .runToFuture
@@ -106,20 +101,19 @@ class TestBackpressure extends munit.FunSuite with GrpcServerFixture with LazyLo
       .mapEval(r => slowTask.map(_ => r))
       .toListL
       .map { events =>
-        val averageDuration = averageEventDuration(events.map(_.timestamp))
         assert(
-          averageDuration > expectedAverageResponseTime,
-          s"$expectedAverageResponseTime the server produced responses too fast"
+          clue(averageEventDuration(events.map(_.timestamp))) >= clue(expectedAverageResponseTime)
         )
       }
       .runToFuture
   }
 
-  def averageEventDuration(timestamps: Seq[Long]) = {
+  def averageEventDuration(timestamps: Seq[Long], expectedResponses: Int = requestCount) = {
+    assertEquals(timestamps.size, expectedResponses)
     timestamps
       .sliding(2)
       .map(timestamps => timestamps.last - timestamps.head)
-      .sum / requestCount
+      .sum / timestamps.size
 
   }
 }

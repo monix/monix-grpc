@@ -22,7 +22,9 @@ class ClientCall[Request, Response] private (
     val listener = ClientCallListeners.unary[Response]
     val makeCall = for {
       _ <- start(listener, headers)
-      _ <- request(1)
+      // Initially ask for two responses from flow-control so that if a misbehaving server
+      // sends more than one responses, we can catch it and fail it in the listener.
+      _ <- request(2)
       _ <- sendMessage(message).guarantee(halfClose)
       response <- listener.waitForResponse
     } yield response
@@ -38,15 +40,14 @@ class ClientCall[Request, Response] private (
       scheduler: Scheduler
   ): Observable[Response] = Observable.defer {
     val listener = ClientCallListeners.streaming[Response](bufferCapacity, request)
-    val makeCall = for {
+    val startCall = for {
       _ <- start(listener, headers)
       _ <- request(1)
       _ <- sendMessage(message).guarantee(halfClose)
-    } yield listener.responses
+    } yield ()
+
     runResponseObservableHandler(
-      Observable
-        .fromTask(TaskLocal.isolate(makeCall).executeWithOptions(_.enableLocalContextPropagation))
-        .flatten
+      listener.responses.doOnSubscribe(startCall)
     )
   }
 
@@ -57,7 +58,9 @@ class ClientCall[Request, Response] private (
     val listener = ClientCallListeners.unary[Response]
     val makeCall = for {
       _ <- start(listener, headers)
-      _ <- request(1)
+      // Initially ask for two responses from flow-control so that if a misbehaving server
+      // sends more than one responses, we can catch it and fail it in the listener.
+      _ <- request(2)
       runningRequest <- {
         val clientStream = messages
           .mapEval(message =>
@@ -92,29 +95,35 @@ class ClientCall[Request, Response] private (
       headers: grpc.Metadata
   )(implicit
       scheduler: Scheduler
-  ): Observable[Response] = {
+  ): Observable[Response] = Observable.defer {
     val listener = ClientCallListeners.streaming[Response](bufferCapacity, request)
-    val makeCall = for {
+    val streamRequests = for {
+      _ <- requests
+        .mapEval(message =>
+          if (call.isReady) {
+            sendMessage(message)
+          } else {
+            val waitUntilReady = Task.fromFuture(listener.onReadyEffect.take())
+            waitUntilReady.>>(sendMessage(message))
+          }
+        )
+        .completedL
+        .*>(halfClose)
+
+    } yield ()
+
+    val startCall = for {
       _ <- start(listener, headers)
       _ <- request(1)
-      requestStream <-
-        requests
-          .mapEval(requests =>
-            if (call.isReady) {
-              sendMessage(requests)
-            } else {
-              val waitUntilReady = Task.fromFuture(listener.onReadyEffect.take())
-              waitUntilReady.>>(sendMessage(requests))
-            }
-          )
-          .guarantee(halfClose)
-          .completedL
-    } yield requestStream
+    } yield {
+      runResponseTaskHandler(streamRequests).runToFuture
+      ()
+    }
+
+    val makeCall = listener.responses.doOnSubscribe(startCall)
 
     runResponseObservableHandler(
-      listener.responses.doOnSubscribe(
-        TaskLocal.isolate(makeCall).executeWithOptions(_.enableLocalContextPropagation)
-      )
+      makeCall
     )
   }
 
@@ -144,7 +153,9 @@ class ClientCall[Request, Response] private (
   ): Task[Unit] = Task(call.start(listener, headers))
 
   private def request(numMessages: Int): Task[Unit] = {
-    Task(call.request(numMessages))
+    Task(
+      call.request(numMessages)
+    )
   }
 
   private def sendMessage(message: Request): Task[Unit] = {
