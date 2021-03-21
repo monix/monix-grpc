@@ -2,7 +2,7 @@ package monix.grpc.codegen
 
 import scalapb.compiler.FunctionalPrinter.PrinterEndo
 import com.google.protobuf.Descriptors.{MethodDescriptor, ServiceDescriptor}
-import scalapb.compiler.{DescriptorImplicits, FunctionalPrinter, StreamType}
+import scalapb.compiler.{DescriptorImplicits, FunctionalPrinter, NameUtils, PrinterEndo, StreamType}
 
 class GrpcServicePrinter(
     service: ServiceDescriptor,
@@ -33,6 +33,66 @@ class GrpcServicePrinter(
     val ServerServiceDefinition = s"$grpcPkg.ServerServiceDefinition"
   }
 
+  private def companionObject(self: ServiceDescriptor): ScalaName =
+    self.getFile.scalaPackage / (self.getName + serviceSuffix)
+
+  private def grpcDescriptor(self: ServiceDescriptor): ScalaName = companionObject(self) / "SERVICE"
+
+  private def grpcDescriptor(method: MethodDescriptor): ScalaName =
+    companionObject(method.getService) / s"METHOD_${NameUtils.toAllCaps(method.getName)}"
+
+  private[this] val serverCalls = "_root_.io.grpc.stub.ServerCalls"
+
+  private[this] def methodDescriptor(method: MethodDescriptor) = PrinterEndo { p =>
+    def marshaller(t: MethodDescriptorPimp#MethodTypeWrapper) =
+      if (t.customScalaType.isDefined)
+        s"_root_.scalapb.grpc.Marshaller.forTypeMappedType[${t.baseScalaType}, ${t.scalaType}]"
+      else
+        s"_root_.scalapb.grpc.Marshaller.forMessage[${t.scalaType}]"
+
+    val methodType = method.streamType match {
+      case StreamType.Unary => "UNARY"
+      case StreamType.ClientStreaming => "CLIENT_STREAMING"
+      case StreamType.ServerStreaming => "SERVER_STREAMING"
+      case StreamType.Bidirectional => "BIDI_STREAMING"
+    }
+
+    val grpcMethodDescriptor = "_root_.io.grpc.MethodDescriptor"
+
+    p.add(
+      s"""${method.deprecatedAnnotation}val ${method.grpcDescriptor.nameSymbol}: $grpcMethodDescriptor[${method.inputType.scalaType}, ${method.outputType.scalaType}] =
+         |  $grpcMethodDescriptor.newBuilder()
+         |    .setType($grpcMethodDescriptor.MethodType.$methodType)
+         |    .setFullMethodName($grpcMethodDescriptor.generateFullMethodName("${service.getFullName}", "${method.getName}"))
+         |    .setSampledToLocalTracing(true)
+         |    .setRequestMarshaller(${marshaller(method.inputType)})
+         |    .setResponseMarshaller(${marshaller(method.outputType)})
+         |    .setSchemaDescriptor(_root_.scalapb.grpc.ConcreteProtoMethodDescriptorSupplier.fromMethodDescriptor(${method.javaDescriptorSource}))
+         |    .build()
+         |""".stripMargin
+    )
+  }
+
+  private[this] def serviceDescriptor(service: ServiceDescriptor) = {
+    val grpcServiceDescriptor = "_root_.io.grpc.ServiceDescriptor"
+
+    PrinterEndo(
+      _.add(s"val ${service.grpcDescriptor.nameSymbol}: $grpcServiceDescriptor =").indent
+        .add(s"""$grpcServiceDescriptor.newBuilder("${service.getFullName}")""")
+        .indent
+        .add(
+          s""".setSchemaDescriptor(new _root_.scalapb.grpc.ConcreteProtoFileDescriptorSupplier(${service.getFile.fileDescriptorObject.fullName}.javaDescriptor))"""
+        )
+        .print(service.methods) { case (p, method) =>
+          p.add(s".addMethod(${method.grpcDescriptor.nameSymbol})")
+        }
+        .add(".build()")
+        .outdent
+        .outdent
+        .newline
+    )
+  }
+
   private[this] val serviceName = service.name
   private[this] val serviceNameMonix = s"$serviceName$serviceSuffix"
   private[this] val servicePkgName = service.getFile.scalaPackage.fullName
@@ -57,6 +117,8 @@ class GrpcServicePrinter(
       .newline
       .call(generateServerDefinition)
       .outdent
+      .call(service.methods.map(methodDescriptor): _*)
+      .call(serviceDescriptor(service))
       .add("}")
   }
 
@@ -72,13 +134,13 @@ class GrpcServicePrinter(
   private def generateClientDefinition: PrinterEndo = p => {
     def methodImpl(method: MethodDescriptor) = { (p: FunctionalPrinter) =>
       val deferOwner =
-        if (!method.isServerStreaming) defs.Task
-        else s"${defs.ObservableOps}"
+        if (method.isServerStreaming) s"${defs.ObservableOps}"
+        else defs.Task
       p.add(
         serviceMethodSignature(method) + s" = ${deferOwner}.deferAction { implicit scheduler =>"
       ).indent
         .add(
-          s"val call = ${defs.ClientCall}(channel, ${method.grpcDescriptor.fullName}, processOpts(${defs.CallOptions}.DEFAULT))"
+          s"val call = ${defs.ClientCall}(channel, ${grpcDescriptor(method).fullName}, processOpts(${defs.CallOptions}.DEFAULT))"
         )
         .add(s"call.${handleMethod(method)}(request, processCtx(ctx))")
         .outdent
@@ -108,7 +170,7 @@ class GrpcServicePrinter(
     def serviceBindingImplementation(method: MethodDescriptor): PrinterEndo = { p =>
       val inType = method.inputType.scalaType
       val outType = method.outputType.scalaType
-      val descriptor = method.grpcDescriptor.fullName
+      val descriptor = grpcDescriptor(method).fullName
       val handler = s"${defs.ServerCallHandlers}.${handleMethod(method)}[$inType, $outType]"
 
       val preprocessTask =
@@ -130,7 +192,7 @@ class GrpcServicePrinter(
       .newline
       .add(s"${defs.ServerServiceDefinition}")
       .indent
-      .add(s".builder(${service.grpcDescriptor.fullName})")
+      .add(s".builder(${grpcDescriptor(service).fullName})")
       .call(service.methods.map(serviceBindingImplementation): _*)
       .add(".build()")
       .outdent
