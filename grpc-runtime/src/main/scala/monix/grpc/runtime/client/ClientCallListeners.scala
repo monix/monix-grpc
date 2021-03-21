@@ -79,7 +79,7 @@ object ClientCallListeners {
     private val callStatus0 = CancelablePromise[CallStatus]()
     private val headers0 = Atomic(None: Option[grpc.Metadata])
     private val responses0 =
-      ConcurrentSubject[Option[Response]](MulticastStrategy.replay, OverflowStrategy.Fail(4))
+      ConcurrentSubject[Option[Response]](MulticastStrategy.replayLimited(1), OverflowStrategy.Fail(4))
 
     val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
 
