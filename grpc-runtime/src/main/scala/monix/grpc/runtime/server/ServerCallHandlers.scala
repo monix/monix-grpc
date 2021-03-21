@@ -224,7 +224,10 @@ object ServerCallHandlers {
   ) extends grpc.ServerCall.Listener[Request] {
     private val isCancelled = CancelablePromise[Unit]()
     private val subject =
-      ConcurrentSubject[Option[Request]](MulticastStrategy.replayLimited(1), OverflowStrategy.Fail(4))
+      ConcurrentSubject[Option[Request]](
+        MulticastStrategy.replayLimited(2),
+        OverflowStrategy.Fail(4)
+      )
     val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
 
     def runStreamingResponseListener(

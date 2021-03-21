@@ -25,7 +25,7 @@ class TestBackpressure extends munit.FunSuite with GrpcServerFixture with LazyLo
     .take(requestCount)
     .map(_ => request.copy(scenario = scenario))
 
-  val expectedAverageResponseTime = 6
+  val expectedAverageResponseTime = 5
 
   test("bidi stream calls should backpressure on client side".tag(Slow)) {
     val client = stub()
