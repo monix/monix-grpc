@@ -11,7 +11,7 @@ import scalapb.monix.grpc.testservice.utils.SilentException
 import java.util.concurrent.TimeoutException
 import scala.concurrent.duration.DurationInt
 
-class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLogging {
+class ServerCallsMock extends munit.FunSuite with GrpcServerFixture with LazyLogging {
   val stub = clientFixture(8000, logger)
   override def munitFixtures = List(stub)
 

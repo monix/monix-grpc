@@ -9,7 +9,7 @@ import monix.execution.AsyncVar
 // TODO: Add attributes, compression, message compression.
 class ServerCall[Request, Response] private (
     val call: grpc.ServerCall[Request, Response]
-) extends AnyVal {
+  ) extends AnyVal {
 
   def isReady: Boolean = call.isReady
 
@@ -17,11 +17,11 @@ class ServerCall[Request, Response] private (
     handleError(Task(call.request(numMessages)), s"Failed to request message $numMessages!")
 
   /**
-   * Asks for two messages even though we expect only one so that if a
-   * misbehaving client sends more than one response we catch the contract
-   * violation and fail right away. Note that disabling auto inbound flow
-   * control has no effect on unary calls.
-   */
+    * Asks for two messages even though we expect only one so that if a
+    * misbehaving client sends more than one response we catch the contract
+    * violation and fail right away. Note that disabling auto inbound flow
+    * control has no effect on unary calls.
+    */
   def requestMessagesFromUnaryCall: Task[Unit] = request(2)
 
   def sendHeaders(headers: grpc.Metadata): Task[Unit] =
@@ -34,10 +34,15 @@ class ServerCall[Request, Response] private (
   def sendStreamingResponses(
       responses: Observable[Response],
       onReady: AsyncVar[Unit]
-  ): Task[Unit] = {
+    ): Task[Unit] = {
     def sendResponse(response: Response): Task[Unit] =
-      if (isReady) sendMessage(response)
-      else Task.fromFuture(onReady.take()).>>(sendMessage(response))
+      if (isReady) {
+        println("send directly")
+        sendMessage(response)
+      } else {
+        println("defered")
+        Task.fromFuture(onReady.take()).>>(sendMessage(response))
+      }
 
     responses.mapEval(sendResponse).completedL
   }
@@ -49,7 +54,7 @@ class ServerCall[Request, Response] private (
       effect: Task[Unit],
       errorMsg: String,
       headers: grpc.Metadata = new grpc.Metadata()
-  ): Task[Unit] = effect.onErrorHandleWith {
+    ): Task[Unit] = effect.onErrorHandleWith {
     case err: grpc.StatusException => Task.raiseError(err)
     case err: grpc.StatusRuntimeException => Task.raiseError(err)
     case err =>
@@ -62,7 +67,7 @@ object ServerCall {
   def apply[Request, Response](
       call: grpc.ServerCall[Request, Response],
       options: ServerCallOptions
-  ): ServerCall[Request, Response] = {
+    ): ServerCall[Request, Response] = {
     val compressions = options.compressor.map(_.name)
     compressions.foreach(call.setCompression)
     new ServerCall(call)
@@ -72,20 +77,20 @@ object ServerCall {
 abstract class ServerCallOptions private (
     val compressor: Option[ServerCompressor],
     val bufferCapacity: BufferCapacity
-) {
+  ) {
   //needs to be private for binary compatibility
   private def copy(
       compressor: Option[ServerCompressor] = this.compressor,
       bufferCapacity: BufferCapacity
-  ): ServerCallOptions = new ServerCallOptions(compressor, bufferCapacity) {}
+    ): ServerCallOptions = new ServerCallOptions(compressor, bufferCapacity) {}
 
   def withServerCompressor(
       compressor: Option[ServerCompressor]
-  ): ServerCallOptions = copy(compressor, bufferCapacity)
+    ): ServerCallOptions = copy(compressor, bufferCapacity)
 
   def withServerCompressor(
       bufferCapacity: BufferCapacity
-  ): ServerCallOptions = copy(compressor, bufferCapacity)
+    ): ServerCallOptions = copy(compressor, bufferCapacity)
 }
 
 object ServerCallOptions {

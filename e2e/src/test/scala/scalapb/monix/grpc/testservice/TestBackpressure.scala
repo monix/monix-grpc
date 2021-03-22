@@ -13,19 +13,19 @@ import scala.concurrent.duration.DurationInt
 
 class TestBackpressure extends munit.FunSuite with GrpcServerFixture with LazyLogging {
   val stub = clientFixture(8002, logger)
-  val request = Request(Scenario.OK, requestCount, Seq.fill(10000)(1))
+  val request = Request(Scenario.OK, requestCount, Seq.fill(100000)(1))
 
   override def munitFixtures = List(stub)
 
-  val requestCount = 400
-  val slowTask = Task().delayResult(10.milli)
+  val requestCount = 100
+  val slowTask = Task().delayResult(50.milli)
 
   def requests(scenario: Scenario) = Observable
     .unfold(1)(s => Some(s -> (s + 1)))
     .take(requestCount)
     .map(_ => request.copy(scenario = scenario))
 
-  val expectedAverageResponseTime = 5
+  val expectedAverageResponseTime = 45
 
   test("bidi stream calls should backpressure on client side".tag(Slow)) {
     val client = stub()
