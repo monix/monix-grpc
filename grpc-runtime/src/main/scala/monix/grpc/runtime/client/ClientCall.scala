@@ -135,7 +135,6 @@ object ClientCall {
       channel: grpc.Channel,
       methodDescriptor: grpc.MethodDescriptor[Request, Response],
       callOptions: grpc.CallOptions
-  ): ClientCall[Request, Response] = {
+  ): ClientCall[Request, Response] =
     new ClientCall(channel.newCall[Request, Response](methodDescriptor, callOptions))
-  }
 }
