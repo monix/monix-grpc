@@ -28,7 +28,8 @@ object ClientCallListeners {
   ): StreamingClientCallListener[R] =
     new StreamingClientCallListener(bufferCapacity, request)
 
-  final class UnaryClientCallListener[Response] extends grpc.ClientCall.Listener[Response] {
+  private[client] final class UnaryClientCallListener[Response]
+      extends grpc.ClientCall.Listener[Response] {
     private val statusPromise = CancelablePromise[CallStatus]()
     private val headers0 = Atomic(None: Option[grpc.Metadata])
     private val response0 = Atomic(None: Option[Response])
@@ -70,7 +71,7 @@ object ClientCallListeners {
     override def onReady(): Unit = onReadyEffect.tryPut(())
   }
 
-  final class StreamingClientCallListener[Response](
+  private[client] final class StreamingClientCallListener[Response](
       bufferCapacity: BufferCapacity,
       request: Int => Task[Unit]
   )(implicit
