@@ -37,13 +37,14 @@ lazy val grpcRuntime = project
   .settings(
     name := "monix-grpc-runtime",
     crossScalaVersions := List("2.12.12", "2.13.3"),
+    testFrameworks += new TestFramework("munit.Framework"),
     libraryDependencies ++= List(
       "io.grpc" % "grpc-api" % "1.36.0",
-      "io.grpc" % "grpc-stub" % "1.36.0",
-      "io.grpc" % "grpc-protobuf" % "1.36.0",
       "io.monix" %% "monix" % "3.2.2",
-      "org.scalameta" %% "munit" % "0.7.22",
-      "com.thesamet.scalapb" %% "scalapb-runtime" % "0.10.9"
+      "com.thesamet.scalapb" %% "scalapb-runtime" % "0.10.9",
+      "io.grpc" % "grpc-stub" % "1.36.0" % Test,
+      "io.grpc" % "grpc-protobuf" % "1.36.0" % Test,
+      "org.scalameta" %% "munit" % "0.7.22" % Test
     )
   )
 
