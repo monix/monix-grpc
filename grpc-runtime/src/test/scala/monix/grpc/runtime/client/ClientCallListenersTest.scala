@@ -62,7 +62,7 @@ class ClientCallListenersTest extends FunSuite {
     listener.onMessage(4)
     listener.onClose(Status.OK, new Metadata())
     assertEquals(requestCount.get(), 0)
-    listener.responses.foreach { x => assertEquals(requestCount.get(), x) }
+    listener.incomingResponses.foreach { x => assertEquals(requestCount.get(), x) }
   }
 
 }

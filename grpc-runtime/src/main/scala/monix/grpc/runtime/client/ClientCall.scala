@@ -3,12 +3,13 @@ package monix.grpc.runtime.client
 import io.grpc
 import monix.eval.Task
 import cats.effect.ExitCase
-import monix.execution.{BufferCapacity, Cancelable, Scheduler}
+import monix.execution.{AsyncVar, BufferCapacity, Cancelable, Scheduler}
 import monix.reactive.Observable
 import monix.reactive.OverflowStrategy
 import monix.eval.TaskLocal
 
 import java.time.Instant
+import monix.execution.CancelablePromise
 
 class ClientCall[Request, Response] private (
     call: grpc.ClientCall[Request, Response],
@@ -22,9 +23,7 @@ class ClientCall[Request, Response] private (
     val listener = ClientCallListeners.unary[Response]
     val makeCall = for {
       _ <- start(listener, headers)
-      // Initially ask for two responses from flow-control so that if a misbehaving server
-      // sends more than one responses, we can catch it and fail it in the listener.
-      _ <- request(2)
+      _ <- requestMessagesFromUnaryCall
       _ <- sendMessage(message).guarantee(halfClose)
       response <- listener.waitForResponse
     } yield response
@@ -47,7 +46,7 @@ class ClientCall[Request, Response] private (
     } yield ()
 
     runResponseObservableHandler(
-      listener.responses.doOnSubscribe(startCall)
+      isolateObservable(listener.incomingResponses.doOnSubscribe(startCall))
     )
   }
 
@@ -58,36 +57,35 @@ class ClientCall[Request, Response] private (
     val listener = ClientCallListeners.unary[Response]
     val makeCall = for {
       _ <- start(listener, headers)
-      // Initially ask for two responses from flow-control so that if a misbehaving server
-      // sends more than one responses, we can catch it and fail it in the listener.
-      _ <- request(2)
-      runningRequest <- {
-        val clientStream = messages
-          .mapEval(message =>
-            if (call.isReady) {
-              sendMessage(message)
-            } else {
-              val waitUntilReady = Task.fromFuture(listener.onReadyEffect.take())
-              waitUntilReady.>>(sendMessage(message))
-            }
-          )
-          .completedL
-          .guarantee(halfClose)
-        Task.racePair(
-          listener.waitForResponse,
-          clientStream
-        )
-      }
+      _ <- requestMessagesFromUnaryCall
+      runningRequest <- Task.racePair(
+        listener.waitForResponse,
+        sendStreamingRequests(messages, listener.onReadyEffect)
+      )
       response <- runningRequest match {
         case Left((response, clientStream)) =>
-          clientStream.cancel.redeem(_ => response, _ => response)
-        case Right((eventualResponse, _)) => eventualResponse.join
+          clientStream.cancel.onErrorHandle(_ => ()).map(_ => response)
+        case Right((responseFiber, _)) => responseFiber.join
       }
     } yield response
 
     TaskLocal
       .isolate(runResponseTaskHandler(makeCall))
       .executeWithOptions(_.enableLocalContextPropagation)
+  }
+
+  private def sendStreamingRequests(
+      requests: Observable[Request],
+      onReady: AsyncVar[Unit]
+  ): Task[Unit] = {
+    def sendRequest(request: Request): Task[Unit] =
+      if (call.isReady) sendMessage(request)
+      else Task.fromFuture(onReady.take()).>>(sendMessage(request))
+
+    requests
+      .mapEval(sendRequest)
+      .completedL
+      .guarantee(halfClose)
   }
 
   def streamingToStreamingCall(
@@ -97,34 +95,26 @@ class ClientCall[Request, Response] private (
       scheduler: Scheduler
   ): Observable[Response] = Observable.defer {
     val listener = ClientCallListeners.streaming[Response](bufferCapacity, request)
-    val streamRequests = for {
-      _ <- requests
-        .mapEval(message =>
-          if (call.isReady) {
-            sendMessage(message)
-          } else {
-            val waitUntilReady = Task.fromFuture(listener.onReadyEffect.take())
-            waitUntilReady.>>(sendMessage(message))
-          }
-        )
-        .completedL
-        .*>(halfClose)
 
-    } yield ()
-
-    val startCall = for {
+    val startSignal = CancelablePromise[Unit]()
+    val startCall: Task[Unit] = for {
+      _ <- Task.fromCancelablePromise(startSignal)
       _ <- start(listener, headers)
       _ <- request(1)
-    } yield {
-      runResponseTaskHandler(streamRequests).runToFuture
-      ()
+      _ <- sendStreamingRequests(requests, listener.onReadyEffect)
+    } yield ()
+
+    val makeCall = startCall.start.map { sendRequestsFiber =>
+      listener.incomingResponses
+        .doOnSubscribe(Task(startSignal.success(())))
+        .guaranteeCase {
+          case ExitCase.Completed => sendRequestsFiber.join
+          case ExitCase.Canceled => sendRequestsFiber.cancel
+          case ExitCase.Error(err) => sendRequestsFiber.cancel
+        }
     }
 
-    val makeCall = listener.responses.doOnSubscribe(startCall)
-
-    runResponseObservableHandler(
-      makeCall
-    )
+    runResponseObservableHandler(isolateObservable(Observable.fromTask(makeCall).flatten))
   }
 
   private def runResponseTaskHandler[R](response: Task[R]): Task[R] = {
@@ -147,20 +137,31 @@ class ClientCall[Request, Response] private (
     }
   }
 
+  private def isolateObservable[T](thunk: => Observable[T]): Observable[T] = {
+    val subscribingTask = TaskLocal
+      .isolate(Task(thunk))
+      .executeWithOptions(_.enableLocalContextPropagation)
+    Observable.fromTask(subscribingTask).flatten
+  }
+
   private def start(
       listener: grpc.ClientCall.Listener[Response],
       headers: grpc.Metadata
   ): Task[Unit] = Task(call.start(listener, headers))
 
-  private def request(numMessages: Int): Task[Unit] = {
-    Task(
-      call.request(numMessages)
-    )
-  }
+  /**
+   * Asks for two messages even though we expect only one so that if a
+   * misbehaving server sends more than one response we catch the contract
+   * violation and fail right away.
+   */
+  private def requestMessagesFromUnaryCall: Task[Unit] =
+    request(2)
 
-  private def sendMessage(message: Request): Task[Unit] = {
+  private def request(numMessages: Int): Task[Unit] =
+    Task(call.request(numMessages))
+
+  private def sendMessage(message: Request): Task[Unit] =
     Task(call.sendMessage(message))
-  }
 
   private def halfClose: Task[Unit] =
     Task(call.halfClose())

@@ -86,11 +86,11 @@ object ClientCallListeners {
 
     val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
 
-    def responses: Observable[Response] = {
+    def incomingResponses: Observable[Response] = {
       responses0
         .takeWhile(_.isDefined)
+        .map(_.get)
         .doOnNext(_ => request(1))
-        .map(elems => elems.get)
         .doOnComplete(
           Task.fromCancelablePromise(callStatus0).flatMap { status =>
             if (status.isOk) Task.unit
