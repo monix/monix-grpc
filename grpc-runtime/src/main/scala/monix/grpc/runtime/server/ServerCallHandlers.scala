@@ -75,17 +75,7 @@ object ServerCallHandlers {
       val listener = new UnaryCallListener(call, scheduler)
 
       listener.runUnaryResponseListener(metadata) { msg =>
-        Observable
-          .defer(f(msg, metadata))
-          .mapEval { response =>
-            if (call.isReady) {
-              call.sendMessage(response)
-            } else {
-              val waitUntilReady = Task.fromFuture(listener.onReadyEffect.take())
-              waitUntilReady.>>(call.sendMessage(response))
-            }
-          }
-          .completedL
+        call.sendStreamingResponses(Observable.defer(f(msg, metadata)), listener.onReadyEffect)
       }
       listener
     }
@@ -107,10 +97,7 @@ object ServerCallHandlers {
         sendResponse: T => Task[Unit]
     ): Unit = {
       val handleResponse = for {
-        // We expect only 1 request, but we ask for 2 requests here so that if a misbehaving client
-        // sends more than 1 requests, ServerCall will catch it. Note that disabling auto
-        // inbound flow control has no effect on unary calls.
-        _ <- call.request(2)
+        _ <- call.requestMessagesFromUnaryCall
         _ <- Task.fromCancelablePromise(completed)
         _ <- call.sendHeaders(metadata)
         _ <- requestMsg.get() match {
@@ -198,19 +185,7 @@ object ServerCallHandlers {
       val call = ServerCall(grpcCall, options)
       val listener = new StreamingCallListener(call, options.bufferCapacity)(scheduler)
       listener.runStreamingResponseListener(metadata) { msgs =>
-        Observable
-          .defer(f(msgs, metadata))
-          .mapEval { response =>
-            if (call.isReady) {
-              call.sendMessage(response)
-            } else {
-              val waitUntilReady = Task.fromFuture(listener.onReadyEffect.take())
-              waitUntilReady.>> {
-                call.sendMessage(response)
-              }
-            }
-          }
-          .completedL
+        call.sendStreamingResponses(Observable.defer(f(msgs, metadata)), listener.onReadyEffect)
       }
       listener
     }

@@ -3,6 +3,8 @@ package monix.grpc.runtime.server
 import io.grpc
 import monix.eval.Task
 import monix.execution.BufferCapacity
+import monix.reactive.Observable
+import monix.execution.AsyncVar
 
 // TODO: Add attributes, compression, message compression.
 class ServerCall[Request, Response] private (
@@ -14,11 +16,30 @@ class ServerCall[Request, Response] private (
   def request(numMessages: Int): Task[Unit] =
     handleError(Task(call.request(numMessages)), s"Failed to request message $numMessages!")
 
+  /**
+   * Asks for two messages even though we expect only one so that if a
+   * misbehaving client sends more than one response we catch the contract
+   * violation and fail right away. Note that disabling auto inbound flow
+   * control has no effect on unary calls.
+   */
+  def requestMessagesFromUnaryCall: Task[Unit] = request(2)
+
   def sendHeaders(headers: grpc.Metadata): Task[Unit] =
     handleError(Task(call.sendHeaders(headers)), s"Failed to send headers!", headers)
 
   def sendMessage(message: Response): Task[Unit] = {
     handleError(Task(call.sendMessage(message)), s"Failed to send message $message!")
+  }
+
+  def sendStreamingResponses(
+      responses: Observable[Response],
+      onReady: AsyncVar[Unit]
+  ): Task[Unit] = {
+    def sendResponse(response: Response): Task[Unit] =
+      if (isReady) sendMessage(response)
+      else Task.fromFuture(onReady.take()).>>(sendMessage(response))
+
+    responses.mapEval(sendResponse).completedL
   }
 
   def closeStream(status: grpc.Status, trailers: grpc.Metadata): Task[Unit] =
