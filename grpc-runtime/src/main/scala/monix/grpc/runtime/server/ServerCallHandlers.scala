@@ -81,7 +81,7 @@ object ServerCallHandlers {
     }
   }
 
-  private final class UnaryCallListener[T, R](
+  private[server] final class UnaryCallListener[T, R](
       call: ServerCall[T, R],
       scheduler: Scheduler
   ) extends grpc.ServerCall.Listener[T] {
@@ -191,7 +191,7 @@ object ServerCallHandlers {
     }
   }
 
-  private final class StreamingCallListener[Request, Response](
+  private[server] final class StreamingCallListener[Request, Response](
       call: ServerCall[Request, Response],
       capacity: BufferCapacity
   )(implicit
@@ -256,7 +256,9 @@ object ServerCallHandlers {
 
     // If `isCancelled` is completed, then client cancelled the grpc call and
     // `finalHandler` will be cancelled automatically by the `race` method
-    Task.race(finalHandler, Task.fromCancelablePromise(isCancelled)).void
+    Task
+      .race(finalHandler, Task.fromCancelablePromise(isCancelled).map(_ => println("i finished")))
+      .void
   }
 
   private def reportError[T, R](
