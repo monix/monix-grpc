@@ -7,11 +7,12 @@ import monix.eval.Task
 import monix.execution.Scheduler.global
 import monix.reactive.Observable
 import scalapb.monix.grpc.testservice.Request.Scenario
-import scalapb.monix.grpc.testservice.{Request, Response, TestService}
+import scalapb.monix.grpc.testservice.TestServiceGrpc.TestService
+import scalapb.monix.grpc.testservice.{Request, Response, TestServiceApi}
 
 import scala.concurrent.duration.SECONDS
 
-class TestServerImpl() extends TestService[Metadata] with LazyLogging {
+class TestService() extends TestServiceApi[Metadata] with LazyLogging {
 
   override def unary(request: Request, ctx: Metadata): Task[Response] = {
     logger.info(s"unary: received $request")
@@ -68,19 +69,19 @@ class TestServerImpl() extends TestService[Metadata] with LazyLogging {
 object TestServer {
 
   def createServer(port: Int): Server = {
-    val server = new TestServerImpl()
+    val server = new TestService()
     ServerBuilder
       .forPort(port)
-      .addService(TestService.bindService(server)(global))
+      .addService(TestServiceApi.bindService(server)(global))
       .build()
   }
 
-  def client(port: Int): (ManagedChannel, TestService[Metadata]) = {
+  def client(port: Int): (ManagedChannel, TestServiceApi[Metadata]) = {
     val channel = NettyChannelBuilder
       .forAddress("localhost", port)
       .usePlaintext()
       .keepAliveTimeout(2, SECONDS)
       .build()
-    (channel, TestService.stub(channel, CallOptions.DEFAULT)(global))
+    (channel, TestServiceApi.stub(channel, CallOptions.DEFAULT)(global))
   }
 }
