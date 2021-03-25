@@ -8,7 +8,6 @@ import monix.eval.Task
 import monix.execution.Scheduler.global
 import monix.reactive.Observable
 import scalapb.monix.grpc.testservice.Request.Scenario
-import scalapb.monix.grpc.testservice.TestServiceGrpc.TestService
 import scalapb.monix.grpc.testservice.{Request, Response, TestServiceApi}
 
 import java.time.Instant
@@ -36,7 +35,9 @@ class TestService(logger: Logger) extends TestServiceApi[Metadata] {
         Observable(Response(1), Response(2)) ++ Observable.raiseError(SilentException())
       case Scenario.BACK_PRESSURE =>
         Observable
-          .unfold(bigResponse)(s => Some(s -> s.copy(out = s.out + 1, timestamp = Instant.now().toEpochMilli)))
+          .unfold(bigResponse)(s =>
+            Some(s -> s.copy(out = s.out + 1, timestamp = Instant.now().toEpochMilli))
+          )
           .take(request.backPressureResponses)
       case Scenario.DELAY => Observable.never
       case _ => Observable(Response(1))
@@ -101,7 +102,7 @@ class TestService(logger: Logger) extends TestServiceApi[Metadata] {
 object TestServer {
 
   def createServer(port: Int, logger: Logger, inprocess: Boolean): Server = {
-    val service = TestServiceGrpcService.bindService(new TestServer(logger))(global)
+    val service = TestServiceApi.bindService(new TestService(logger))(global)
 
     if (inprocess) {
       InProcessServerBuilder

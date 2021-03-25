@@ -17,7 +17,7 @@ final case class ServerCallMock[Request, Response]()(implicit val scheduler: Sch
   val requestAmount = ConcurrentSubject[Int](MulticastStrategy.replay)
   val sendMessages = ConcurrentSubject[Response](MulticastStrategy.replay)
   val headers = ConcurrentSubject[Metadata](MulticastStrategy.replay)
-  val closeValue = AsyncVar.empty[(Status, Metadata)]()
+  private val closeValue = AsyncVar.empty[(Status, Metadata)]()
 
   def onClose = closeValue.take()
 
@@ -34,7 +34,9 @@ final case class ServerCallMock[Request, Response]()(implicit val scheduler: Sch
 
   override def sendMessage(message: Response): Unit = this.sendMessages.onNext(message)
 
-  override def close(status: Status, trailers: Metadata): Unit = {}
+  override def close(status: Status, trailers: Metadata): Unit = {
+    closeValue.put((status, trailers))
+  }
 
   var isCancelled: Boolean = false
 

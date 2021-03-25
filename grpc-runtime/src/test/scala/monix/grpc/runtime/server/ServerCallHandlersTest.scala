@@ -98,36 +98,10 @@ class ServerCallHandlersTest extends FunSuite {
     listener.runStreamingResponseListener(new Metadata())(_ => Task.never)
 
     Task(listener.onCancel()).delayExecution(2.milli).runAsyncAndForget
-    mock.closeValue
-      .take()
+    mock.onClose
       .map { case (status, _) =>
         assertEquals(status, Status.CANCELLED)
       }
   }
 
 }
-
-//case class ServerCallTest[Request, Response](
-//    autoAcc: Boolean
-//  )(
-//    implicit val scheduler: TestScheduler = TestScheduler()
-//  ) extends Cancelable {
-//  val serverCallMock = new ServerCallMock[Request, Response]()(scheduler)
-//  val requests = TestSubscriber[Request](autoAcc)
-//  val responses = ConcurrentSubject[Response](autoAcc)
-//
-//  private var cancelable: Option[Cancelable] = None
-//
-//  def streamingCall(requests: Observer[Request] = requests, responses: Observable[Response] = responses) = {
-//    ServerCallHandlers
-//      .streamingToStreamingCall[Request, Response]((r, metadata) => {
-//        cancelable = Some(r.subscribe(requests))
-//        responses
-//      })
-//      .startCall(serverCallMock, new Metadata())
-//  }
-//
-//  override def cancel(): Unit = {
-//    cancelable.foreach(_.cancel())
-//  }
-//}
