@@ -13,7 +13,7 @@ object ClientCallListeners {
   final case class CallStatus(
       status: grpc.Status,
       trailers: grpc.Metadata
-    ) {
+  ) {
     def isOk: Boolean = status.isOk()
     def toException: RuntimeException =
       status.asRuntimeException(trailers)
@@ -25,13 +25,13 @@ object ClientCallListeners {
   def streaming[R](
       bufferCapacity: BufferCapacity,
       request: Int => Task[Unit]
-    )(
-      implicit
+  )(implicit
       scheduler: Scheduler
-    ): StreamingClientCallListener[R] =
+  ): StreamingClientCallListener[R] =
     new StreamingClientCallListener(bufferCapacity, request)
 
-  private[client] final class UnaryClientCallListener[Response] extends grpc.ClientCall.Listener[Response] {
+  private[client] final class UnaryClientCallListener[Response]
+      extends grpc.ClientCall.Listener[Response] {
     private val statusPromise = CancelablePromise[CallStatus]()
     private val headers0 = Atomic(None: Option[grpc.Metadata])
     private val response0 = Atomic(None: Option[Response])
@@ -76,10 +76,9 @@ object ClientCallListeners {
   private[client] final class StreamingClientCallListener[Response](
       bufferCapacity: BufferCapacity,
       request: Int => Task[Unit]
-    )(
-      implicit
+  )(implicit
       scheduler: Scheduler
-    ) extends grpc.ClientCall.Listener[Response] {
+  ) extends grpc.ClientCall.Listener[Response] {
     private val callStatus0 = CancelablePromise[CallStatus]()
     private val headers0 = Atomic(None: Option[grpc.Metadata])
     private val responses0 =
@@ -113,7 +112,6 @@ object ClientCallListeners {
     }
 
     override def onMessage(message: Response): Unit = {
-      println(s"${Instant.now} got message!")
       Task.deferFuture(responses0.onNext(Some(message))).runSyncUnsafe()
     }
 

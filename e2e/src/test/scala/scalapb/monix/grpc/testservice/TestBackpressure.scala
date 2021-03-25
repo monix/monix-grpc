@@ -10,10 +10,11 @@ import scalapb.monix.grpc.testservice.Request.Scenario
 
 import java.time.Instant
 import scala.concurrent.duration.DurationInt
+import scala.util.Random
 
 class TestBackpressure extends munit.FunSuite with GrpcServerFixture with LazyLogging {
-  val stub = clientFixture(8002, logger)
-  val request = Request(Scenario.OK, requestCount, Seq.fill(100000)(1))
+  val stub = clientFixture(8002, logger, true)
+  def request = Request(Scenario.OK, 1, Array.fill(10)(Random.nextDouble()))
 
   override def munitFixtures = List(stub)
 
@@ -32,7 +33,8 @@ class TestBackpressure extends munit.FunSuite with GrpcServerFixture with LazyLo
     val subject = ConcurrentSubject[Instant](MulticastStrategy.replay)
 
     val requestStream = requests(Scenario.SLOW)
-      .doOnNext(_ => Task(subject.onNext(Instant.now())))
+      .doOnNext(x => Task(subject.onNext(Instant.now())))
+//      .doOnNext(x => Task(println(x)))
 
     client
       .bidiStreaming(requestStream, new Metadata())
@@ -55,7 +57,7 @@ class TestBackpressure extends munit.FunSuite with GrpcServerFixture with LazyLo
 
     client
       .bidiStreaming(
-        requests(Scenario.BACK_PRESSURE).map(_.withBackPressureResponses(5)).take(requestCount / 5),
+        requests(Scenario.BACK_PRESSURE),
         new Metadata()
       )
       .doOnNext(x => Task(logger.debug(s"received response ${x.out}")))

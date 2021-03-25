@@ -12,7 +12,7 @@ import java.util.concurrent.TimeoutException
 import scala.concurrent.duration.DurationInt
 
 class ServerCallsMock extends munit.FunSuite with GrpcServerFixture with LazyLogging {
-  val stub = clientFixture(8000, logger)
+  val stub = clientFixture(8000, logger, false)
   override def munitFixtures = List(stub)
 
   implicit val opt = Task.defaultOptions.enableLocalContextPropagation

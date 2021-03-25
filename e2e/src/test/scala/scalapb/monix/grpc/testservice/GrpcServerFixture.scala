@@ -9,9 +9,9 @@ import scala.util.Try
 
 trait GrpcServerFixture {
   self: Suite =>
-  def clientFixture(port: Int, logger: Logger) =
+  def clientFixture(port: Int, logger: Logger, inprocess: Boolean = false) =
     new Fixture[TestServiceGrpcService[Metadata]]("server") {
-      private val server: Server = TestServer.createServer(port, logger)
+      private val server: Server = TestServer.createServer(port, logger, inprocess)
       private var client: TestServiceGrpcService[Metadata] = null
       private var channel: ManagedChannel = null
 
@@ -19,7 +19,7 @@ trait GrpcServerFixture {
 
       override def beforeAll(): Unit = {
         server.start()
-        val channelClient = TestServer.client(port)
+        val channelClient = TestServer.client(port, inprocess)
         channel = channelClient._1
         client = channelClient._2
       }

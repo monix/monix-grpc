@@ -2,6 +2,7 @@ package scalapb.monix.grpc.testservice.utils
 
 import com.typesafe.scalalogging.{LazyLogging, Logger}
 import io.grpc._
+import io.grpc.inprocess.{InProcessChannelBuilder, InProcessServerBuilder}
 import io.grpc.netty.{NettyChannelBuilder, NettyServerBuilder}
 import monix.eval.Task
 import monix.execution.Scheduler.global
@@ -11,6 +12,7 @@ import scalapb.monix.grpc.testservice.{Request, Response, TestServiceGrpcService
 
 import java.time.Instant
 import scala.concurrent.duration.{DurationInt, SECONDS}
+import scala.util.Random
 
 class TestServer(logger: Logger) extends TestServiceGrpcService[Metadata] {
 
@@ -33,7 +35,9 @@ class TestServer(logger: Logger) extends TestServiceGrpcService[Metadata] {
         Observable(Response(1), Response(2)) ++ Observable.raiseError(SilentException())
       case Scenario.BACK_PRESSURE =>
         Observable
-          .unfold(bigResponse)(s => Some(s -> s.copy(out = s.out + 1, timestamp = Instant.now().toEpochMilli)))
+          .unfold(bigResponse)(s =>
+            Some(s -> s.copy(out = s.out + 1, timestamp = Instant.now().toEpochMilli))
+          )
           .take(request.backPressureResponses)
       case Scenario.DELAY => Observable.never
       case _ => Observable(Response(1))
@@ -42,7 +46,7 @@ class TestServer(logger: Logger) extends TestServiceGrpcService[Metadata] {
     responseStream.doOnNext(r => Task.apply(logger.info(s"response: ${r.out} ${r.timestamp}")))
   }
 
-  def bigResponse = Response(0, Instant.now().toEpochMilli, Array.fill(100000)(1))
+  def bigResponse = Response(0, Instant.now().toEpochMilli, Array.fill(10)(Random.nextDouble()))
 
   override def clientStreaming(request: Observable[Request], ctx: Metadata): Task[Response] = {
     request
@@ -74,11 +78,9 @@ class TestServer(logger: Logger) extends TestServiceGrpcService[Metadata] {
           case Scenario.ERROR_NOW => Task.raiseError(SilentException())
           case Scenario.DELAY => Task.never
           case Scenario.SLOW =>
-            Task
-              .delay(
-                previousResponse.map(r => Response(r.out + 1, 0, Seq()))
-              )
-              .delayResult(50.milli)
+            Task(
+              previousResponse.map(r => Response(r.out + 1, 0, Seq()))
+            ).delayResult(50.milli)
           case Scenario.BACK_PRESSURE =>
             Task(
               previousResponse.last.flatMap(r =>
@@ -99,20 +101,33 @@ class TestServer(logger: Logger) extends TestServiceGrpcService[Metadata] {
 
 object TestServer {
 
-  def createServer(port: Int, logger: Logger): Server = {
-    val server = new TestServer(logger)
-    NettyServerBuilder
-      .forPort(port)
-      .addService(TestServiceGrpcService.bindService(server)(global))
-      .build()
+  def createServer(port: Int, logger: Logger, inprocess: Boolean): Server = {
+    val service = TestServiceGrpcService.bindService(new TestServer(logger))(global)
+
+    if (inprocess) {
+      InProcessServerBuilder
+        .forName("name")
+        .addService(service)
+        .build()
+    } else {
+      NettyServerBuilder
+        .forPort(port)
+        .addService(service)
+        .build()
+    }
+
   }
 
-  def client(port: Int): (ManagedChannel, TestServiceGrpcService[Metadata]) = {
-    val channel = NettyChannelBuilder
-      .forAddress("localhost", port)
-      .usePlaintext()
-      .keepAliveTimeout(2, SECONDS)
-      .build()
+  def client(port: Int, inprocess: Boolean): (ManagedChannel, TestServiceGrpcService[Metadata]) = {
+    val channel = if (inprocess) {
+      InProcessChannelBuilder
+        .forName("name")
+        .build()
+    } else {
+      NettyChannelBuilder
+        .forAddress("localhost", port)
+        .build()
+    }
     (channel, TestServiceGrpcService.stub(channel, CallOptions.DEFAULT)(global))
   }
 }

@@ -79,8 +79,10 @@ class ClientCall[Request, Response] private (
       onReady: AsyncVar[Unit]
   ): Task[Unit] = {
     def sendRequest(request: Request): Task[Unit] =
-      if (call.isReady) sendMessage(request)
-      else Task.fromFuture(onReady.take()).>>(sendMessage(request))
+      if (call.isReady)
+        sendMessage(request)
+      else
+        Task.fromFuture(onReady.take()).>>(sendMessage(request))
 
     requests
       .mapEval(sendRequest)
@@ -160,8 +162,9 @@ class ClientCall[Request, Response] private (
   private def request(numMessages: Int): Task[Unit] =
     Task(call.request(numMessages))
 
-  private def sendMessage(message: Request): Task[Unit] =
+  private def sendMessage(message: Request): Task[Unit] = {
     Task(call.sendMessage(message))
+  }
 
   private def halfClose: Task[Unit] =
     Task(call.halfClose())

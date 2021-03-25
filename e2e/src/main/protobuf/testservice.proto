@@ -13,13 +13,13 @@ message Request {
     }
     Scenario scenario = 1;
     int32 backPressureResponses = 2;
-    repeated int32 bulk = 3;
+    repeated double bulk = 3;
 }
 
 message Response {
     int32 out = 1;
     int64 timestamp = 2;
-    repeated int32 bulk = 3;
+    repeated double bulk = 3;
 }
 
 service TestService {

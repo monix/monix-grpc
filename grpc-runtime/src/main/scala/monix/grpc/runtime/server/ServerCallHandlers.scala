@@ -257,7 +257,7 @@ object ServerCallHandlers {
     // If `isCancelled` is completed, then client cancelled the grpc call and
     // `finalHandler` will be cancelled automatically by the `race` method
     Task
-      .race(finalHandler, Task.fromCancelablePromise(isCancelled).map(_ => println("i finished")))
+      .race(finalHandler, Task.fromCancelablePromise(isCancelled))
       .void
   }
 
