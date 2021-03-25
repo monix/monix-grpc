@@ -90,12 +90,11 @@ lazy val e2e = project
     ),
     testFrameworks += new TestFramework("munit.Framework"),
     PB.targets in Compile := Seq(
-      scalapb.gen(grpc = true) -> (sourceManaged in Compile).value,
+      scalapb.gen(grpc = false) -> (sourceManaged in Compile).value,
       genModule(
         "monix.grpc.codegen.GrpcCodeGenerator$"
       ) -> (sourceManaged in Compile).value
     ),
     PB.protocVersion := "3.13.0",
-    codeGenClasspath := (codeGenJVM212 / Compile / fullClasspath).value,
-    testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework")
+    codeGenClasspath := (codeGenJVM212 / Compile / fullClasspath).value
   )

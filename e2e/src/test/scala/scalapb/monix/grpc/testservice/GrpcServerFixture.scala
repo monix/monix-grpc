@@ -10,9 +10,9 @@ import scala.util.Try
 trait GrpcServerFixture {
   self: Suite =>
   def clientFixture(port: Int, logger: Logger, inprocess: Boolean = false) =
-    new Fixture[TestServiceGrpcService[Metadata]]("server") {
+    new Fixture[TestServiceApi[Metadata]]("server") {
       private val server: Server = TestServer.createServer(port, logger, inprocess)
-      private var client: TestServiceGrpcService[Metadata] = null
+      private var client: TestServiceApi[Metadata] = null
       private var channel: ManagedChannel = null
 
       def apply() = client

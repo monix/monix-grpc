@@ -9,7 +9,7 @@ import scalapb.compiler.{DescriptorImplicits, FunctionalPrinter, ProtobufGenerat
 
 import monix.grpc.codegen.build.BuildInfo
 
-case class CodeGenParams(serviceSuffix: String = "GrpcService")
+case class CodeGenParams(serviceSuffix: String = "Api")
 
 object GrpcCodeGenerator extends CodeGenApp {
   override def registerExtensions(registry: ExtensionRegistry): Unit =

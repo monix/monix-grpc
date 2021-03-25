@@ -8,13 +8,14 @@ import monix.eval.Task
 import monix.execution.Scheduler.global
 import monix.reactive.Observable
 import scalapb.monix.grpc.testservice.Request.Scenario
-import scalapb.monix.grpc.testservice.{Request, Response, TestServiceGrpcService}
+import scalapb.monix.grpc.testservice.TestServiceGrpc.TestService
+import scalapb.monix.grpc.testservice.{Request, Response, TestServiceApi}
 
 import java.time.Instant
 import scala.concurrent.duration.{DurationInt, SECONDS}
 import scala.util.Random
 
-class TestServer(logger: Logger) extends TestServiceGrpcService[Metadata] {
+class TestService(logger: Logger) extends TestServiceApi[Metadata] {
 
   override def unary(request: Request, ctx: Metadata): Task[Response] = {
     logger.info(s"unary: received $request")
@@ -35,9 +36,7 @@ class TestServer(logger: Logger) extends TestServiceGrpcService[Metadata] {
         Observable(Response(1), Response(2)) ++ Observable.raiseError(SilentException())
       case Scenario.BACK_PRESSURE =>
         Observable
-          .unfold(bigResponse)(s =>
-            Some(s -> s.copy(out = s.out + 1, timestamp = Instant.now().toEpochMilli))
-          )
+          .unfold(bigResponse)(s => Some(s -> s.copy(out = s.out + 1, timestamp = Instant.now().toEpochMilli)))
           .take(request.backPressureResponses)
       case Scenario.DELAY => Observable.never
       case _ => Observable(Response(1))
@@ -118,7 +117,7 @@ object TestServer {
 
   }
 
-  def client(port: Int, inprocess: Boolean): (ManagedChannel, TestServiceGrpcService[Metadata]) = {
+  def client(port: Int, inprocess: Boolean): (ManagedChannel, TestServiceApi[Metadata]) = {
     val channel = if (inprocess) {
       InProcessChannelBuilder
         .forName("name")
@@ -128,6 +127,6 @@ object TestServer {
         .forAddress("localhost", port)
         .build()
     }
-    (channel, TestServiceGrpcService.stub(channel, CallOptions.DEFAULT)(global))
+    (channel, TestServiceApi.stub(channel, CallOptions.DEFAULT)(global))
   }
 }
