@@ -15,7 +15,6 @@ class GrpcServicePrinter(
     private val grpcPkg = "_root_.io.grpc"
     private val thisPkg = "_root_.monix.grpc.runtime"
 
-    val Ctx = "Ctx"
     val Error = "String"
 
     val Task = s"$monixPkg.eval.Task"
@@ -100,7 +99,7 @@ class GrpcServicePrinter(
   def printService(printer: FunctionalPrinter): FunctionalPrinter = {
     printer
       .add(s"package $servicePkgName", "")
-      .add(s"trait $serviceNameMonix[${defs.Ctx}] {")
+      .add(s"trait $serviceNameMonix {")
       .indent
       .seq(service.methods.map(serviceMethodSignature))
       .outdent
@@ -124,9 +123,9 @@ class GrpcServicePrinter(
 
   private def generateClientStub: PrinterEndo = p => {
     p.add(
-      s"def stub(channel: ${defs.Channel}, callOptions: ${defs.CallOptions} /*= ${defs.CallOptions}.DEFAULT*/)(implicit scheduler: ${defs.Scheduler}): $serviceNameMonix[${defs.Metadata}] = {"
+      s"def stub(channel: ${defs.Channel}, callOptions: ${defs.CallOptions} /*= ${defs.CallOptions}.DEFAULT*/)(implicit scheduler: ${defs.Scheduler}): $serviceNameMonix = {"
     ).indent
-      .add(s"client[${defs.Metadata}](channel, identity, _ => callOptions)")
+      .add(s"client(channel, _ => callOptions)")
       .outdent
       .add("}")
   }
@@ -142,13 +141,13 @@ class GrpcServicePrinter(
         .add(
           s"val call = ${defs.ClientCall}(channel, ${grpcDescriptor(method).fullName}, processOpts(${defs.CallOptions}.DEFAULT))"
         )
-        .add(s"call.${handleMethod(method)}(request, processCtx(ctx))")
+        .add(s"call.${handleMethod(method)}(request, metadata)")
         .outdent
         .add("}")
     }
 
     p.add(
-      s"def client[${defs.Ctx}](channel: ${defs.Channel}, processCtx: ${defs.Ctx} => ${defs.Metadata}, processOpts: ${defs.CallOptions} => ${defs.CallOptions} = identity)(implicit scheduler: ${defs.Scheduler}): $serviceNameMonix[${defs.Ctx}] = new $serviceNameMonix[${defs.Ctx}] {"
+      s"def client(channel: ${defs.Channel}, processOpts: ${defs.CallOptions} => ${defs.CallOptions} = identity)(implicit scheduler: ${defs.Scheduler}): $serviceNameMonix = new $serviceNameMonix {"
     ).indent
       .call(service.methods.map(methodImpl): _*)
       .outdent
@@ -157,10 +156,10 @@ class GrpcServicePrinter(
 
   private def generateBindService: PrinterEndo = p => {
     p.add(
-      s"def bindService(impl: $serviceNameMonix[${defs.Metadata}])(implicit scheduler: ${defs.Scheduler}): ${defs.ServerServiceDefinition} = {"
+      s"def bindService(impl: $serviceNameMonix)(implicit scheduler: ${defs.Scheduler}): ${defs.ServerServiceDefinition} = {"
     ).indent
       .add(
-        s"service[${defs.Metadata}](impl, metadata => Right[${defs.Error}, ${defs.Metadata}](metadata))"
+        s"service(impl)"
       )
       .outdent
       .add("}")
@@ -173,22 +172,15 @@ class GrpcServicePrinter(
       val descriptor = grpcDescriptor(method).fullName
       val handler = s"${defs.ServerCallHandlers}.${handleMethod(method)}[$inType, $outType]"
 
-      val preprocessTask =
-        if (!method.isServerStreaming) "makeCtxOrFail(m)"
-        else s"${defs.Observable}.fromTask(makeCtxOrFail(m))"
-
       p.add(
-        s".addMethod($descriptor, $handler((r, m) => $preprocessTask.flatMap(impl.${method.name}(r, _))))"
+        s".addMethod($descriptor, $handler(impl.${method.name}))"
       )
     }
 
     p.add(
-      s"def service[${defs.Ctx}](impl: $serviceNameMonix[${defs.Ctx}], makeCtx: ${defs.Metadata} => Either[${defs.Error}, ${defs.Ctx}])(implicit scheduler: ${defs.Scheduler}): ${defs.ServerServiceDefinition} = {"
+      s"def service(impl: $serviceNameMonix)(implicit scheduler: ${defs.Scheduler}): ${defs.ServerServiceDefinition} = {"
     ).indent
       .newline
-      .add(
-        s"val makeCtxOrFail: ${defs.Metadata} => ${defs.Task}[${defs.Ctx}] = metadata => ${defs.Task}.fromEither(makeCtx(metadata).left.map[Throwable](${defs.FailedPrecondition}.withDescription(_).asRuntimeException()))"
-      )
       .newline
       .add(s"${defs.ServerServiceDefinition}")
       .indent
@@ -210,19 +202,19 @@ class GrpcServicePrinter(
   }
 
   private def serviceMethodSignature(method: MethodDescriptor): String = {
-    val ctx = s"ctx: ${defs.Ctx}"
+    val metadata = s"metadata: ${defs.Metadata} = new ${defs.Metadata}()"
     val scalaInType = method.inputType.scalaType
     val scalaOutType = method.outputType.scalaType
 
     s"def ${method.name}" + (method.streamType match {
       case StreamType.Unary =>
-        s"(request: $scalaInType, $ctx): ${defs.Task}[$scalaOutType]"
+        s"(request: $scalaInType, $metadata): ${defs.Task}[$scalaOutType]"
       case StreamType.ClientStreaming =>
-        s"(request: ${defs.Observable}[$scalaInType], $ctx): ${defs.Task}[$scalaOutType]"
+        s"(request: ${defs.Observable}[$scalaInType], $metadata): ${defs.Task}[$scalaOutType]"
       case StreamType.ServerStreaming =>
-        s"(request: $scalaInType, $ctx): ${defs.Observable}[$scalaOutType]"
+        s"(request: $scalaInType, $metadata): ${defs.Observable}[$scalaOutType]"
       case StreamType.Bidirectional =>
-        s"(request: ${defs.Observable}[$scalaInType], $ctx): ${defs.Observable}[$scalaOutType]"
+        s"(request: ${defs.Observable}[$scalaInType], $metadata): ${defs.Observable}[$scalaOutType]"
     })
   }
 

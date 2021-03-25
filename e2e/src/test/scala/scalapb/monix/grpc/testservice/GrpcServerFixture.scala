@@ -13,13 +13,13 @@ trait GrpcServerFixture {
       port: Int,
       logger: Logger,
       inprocess: Boolean = false
-  ): Fixture[TestServiceApi[Metadata]] =
-    new Fixture[TestServiceApi[Metadata]]("server") {
+  ): Fixture[TestServiceApi] =
+    new Fixture[TestServiceApi]("server") {
       private val server: Server = TestServer.createServer(port, logger, inprocess)
-      private var client: TestServiceApi[Metadata] = null
+      private var client: TestServiceApi = null
       private var channel: ManagedChannel = null
 
-      def apply(): TestServiceApi[Metadata] = client
+      def apply(): TestServiceApi = client
 
       override def beforeAll(): Unit = {
         server.start()
