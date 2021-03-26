@@ -35,7 +35,9 @@ class TestService(logger: Logger) extends TestServiceApi[Metadata] {
         Observable(Response(1), Response(2)) ++ Observable.raiseError(SilentException())
       case Scenario.BACK_PRESSURE =>
         Observable
-          .unfold(bigResponse)(s => Some(s -> s.copy(out = s.out + 1, timestamp = Instant.now().toEpochMilli)))
+          .unfold(bigResponse)(s =>
+            Some(s -> s.copy(out = s.out + 1, timestamp = Instant.now().toEpochMilli))
+          )
           .take(request.backPressureResponses)
       case Scenario.DELAY => Observable.never
       case _ => Observable(Response(1))
