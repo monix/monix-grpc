@@ -4,44 +4,38 @@ import cats.effect.ExitCase
 import io.grpc
 import monix.eval.{Task, TaskLocal}
 import monix.execution.atomic.{AtomicAny, AtomicInt}
-import monix.execution.{
-  AsyncQueue,
-  AsyncVar,
-  BufferCapacity,
-  CancelablePromise,
-  ChannelType,
-  Scheduler
-}
+import monix.execution.{AsyncQueue, AsyncVar, BufferCapacity, CancelablePromise, ChannelType, Scheduler}
 import monix.reactive.subjects.ConcurrentSubject
 import monix.reactive.{MulticastStrategy, Observable, OverflowStrategy}
 
 import java.time.Instant
 
 /**
- * Defines the grpc service API handlers that are used in the stub code
- * generated from our domain-specific code generator.
- */
+  * Defines the grpc service API handlers that are used in the stub code
+  * generated from our domain-specific code generator.
+  */
 object ServerCallHandlers {
 
   /**
-   * Defines a grpc service call handler that receives only one request from the
-   * client and returns one response from the server.
-   *
-   * @param f is the function that turns a request and metadata into a response.
-   * @param options is the configuration to configure options for this call.
-   * @param scheduler is the (implicit) scheduler available in the service definition.
-   * @return a grpc server call handler that will be responsible for processing this call.
-   */
+    * Defines a grpc service call handler that receives only one request from the
+    * client and returns one response from the server.
+    *
+    * @param f is the function that turns a request and metadata into a response.
+    * @param options is the configuration to configure options for this call.
+    * @param scheduler is the (implicit) scheduler available in the service definition.
+    * @return a grpc server call handler that will be responsible for processing this call.
+    */
   def unaryToUnaryCall[T, R](
       f: (T, grpc.Metadata) => Task[R],
       options: ServerCallOptions = ServerCallOptions.default
-  )(implicit
+    )(
+      implicit
       scheduler: Scheduler
-  ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
+    ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
     def startCall(
         grpcCall: grpc.ServerCall[T, R],
         metadata: grpc.Metadata
-    ): grpc.ServerCall.Listener[T] = {
+      ): grpc.ServerCall.Listener[T] = {
       val call = ServerCall(grpcCall, options)
       val listener = new UnaryCallListener(call, scheduler)
       listener.runUnaryResponseListener(metadata) { msg =>
@@ -53,24 +47,25 @@ object ServerCallHandlers {
   }
 
   /**
-   * Defines a grpc service call handler that receives only one request from the
-   * client and returns several responses from the server.
-   *
-   * @param f is the function that turns a request and metadata into a response.
-   * @param options is the configuration to configure options for this call.
-   * @param scheduler is the (implicit) scheduler available in the service definition.
-   * @return a grpc server call handler that will be responsible for processing this call.
-   */
+    * Defines a grpc service call handler that receives only one request from the
+    * client and returns several responses from the server.
+    *
+    * @param f is the function that turns a request and metadata into a response.
+    * @param options is the configuration to configure options for this call.
+    * @param scheduler is the (implicit) scheduler available in the service definition.
+    * @return a grpc server call handler that will be responsible for processing this call.
+    */
   def unaryToStreamingCall[T, R](
       f: (T, grpc.Metadata) => Observable[R],
       options: ServerCallOptions = ServerCallOptions.default
-  )(implicit
+    )(
+      implicit
       scheduler: Scheduler
-  ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
+    ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
     def startCall(
         grpcCall: grpc.ServerCall[T, R],
         metadata: grpc.Metadata
-    ): grpc.ServerCall.Listener[T] = {
+      ): grpc.ServerCall.Listener[T] = {
       val call = ServerCall(grpcCall, options)
       val listener = new UnaryCallListener(call, scheduler)
 
@@ -84,7 +79,7 @@ object ServerCallHandlers {
   private[server] final class UnaryCallListener[T, R](
       call: ServerCall[T, R],
       scheduler: Scheduler
-  ) extends grpc.ServerCall.Listener[T] {
+    ) extends grpc.ServerCall.Listener[T] {
     val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
 
     private val requestMsg = AtomicAny[Option[T]](None)
@@ -93,9 +88,9 @@ object ServerCallHandlers {
 
     def runUnaryResponseListener(
         metadata: grpc.Metadata
-    )(
+      )(
         sendResponse: T => Task[Unit]
-    ): Unit = {
+      ): Unit = {
       val handleResponse = for {
         _ <- call.requestMessagesFromUnaryCall
         _ <- Task.fromCancelablePromise(completed)
@@ -135,24 +130,25 @@ object ServerCallHandlers {
   }
 
   /**
-   * Defines a grpc service call handler that receives several requests request
-   * from the client and returns one response from the server.
-   *
-   * @param f is the function that turns a request and metadata into a response.
-   * @param options is the configuration to configure options for this call.
-   * @param scheduler is the (implicit) scheduler available in the service definition.
-   * @return a grpc server call handler that will be responsible for processing this call.
-   */
+    * Defines a grpc service call handler that receives several requests request
+    * from the client and returns one response from the server.
+    *
+    * @param f is the function that turns a request and metadata into a response.
+    * @param options is the configuration to configure options for this call.
+    * @param scheduler is the (implicit) scheduler available in the service definition.
+    * @return a grpc server call handler that will be responsible for processing this call.
+    */
   def streamingToUnaryCall[T, R](
       f: (Observable[T], grpc.Metadata) => Task[R],
       options: ServerCallOptions = ServerCallOptions.default
-  )(implicit
+    )(
+      implicit
       scheduler: Scheduler
-  ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
+    ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
     def startCall(
         grpcCall: grpc.ServerCall[T, R],
         metadata: grpc.Metadata
-    ): grpc.ServerCall.Listener[T] = {
+      ): grpc.ServerCall.Listener[T] = {
       val call = ServerCall(grpcCall, options)
       val listener = new StreamingCallListener(call, options.bufferCapacity)(scheduler)
       listener.runStreamingResponseListener(metadata) { msgs =>
@@ -163,24 +159,25 @@ object ServerCallHandlers {
   }
 
   /**
-   * Defines a grpc service call handler that receives several requests request
-   * from the client and returns several responses from the server.
-   *
-   * @param f is the function that turns a request and metadata into a response.
-   * @param options is the configuration to configure options for this call.
-   * @param scheduler is the (implicit) scheduler available in the service definition.
-   * @return a grpc server call handler that will be responsible for processing this call.
-   */
+    * Defines a grpc service call handler that receives several requests request
+    * from the client and returns several responses from the server.
+    *
+    * @param f is the function that turns a request and metadata into a response.
+    * @param options is the configuration to configure options for this call.
+    * @param scheduler is the (implicit) scheduler available in the service definition.
+    * @return a grpc server call handler that will be responsible for processing this call.
+    */
   def streamingToStreamingCall[T, R](
       f: (Observable[T], grpc.Metadata) => Observable[R],
       options: ServerCallOptions = ServerCallOptions.default
-  )(implicit
+    )(
+      implicit
       scheduler: Scheduler
-  ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
+    ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
     def startCall(
         grpcCall: grpc.ServerCall[T, R],
         metadata: grpc.Metadata
-    ): grpc.ServerCall.Listener[T] = {
+      ): grpc.ServerCall.Listener[T] = {
 
       val call = ServerCall(grpcCall, options)
       val listener = new StreamingCallListener(call, options.bufferCapacity)(scheduler)
@@ -194,30 +191,29 @@ object ServerCallHandlers {
   private[server] final class StreamingCallListener[Request, Response](
       call: ServerCall[Request, Response],
       capacity: BufferCapacity
-  )(implicit
+    )(
+      implicit
       scheduler: Scheduler
-  ) extends grpc.ServerCall.Listener[Request] {
+    ) extends grpc.ServerCall.Listener[Request] {
     private val isCancelled = CancelablePromise[Unit]()
     private val subject =
-      ConcurrentSubject[Option[Request]](
-        MulticastStrategy.replayLimited(2),
+      ConcurrentSubject[Request](
+        MulticastStrategy.publish,
         OverflowStrategy.Fail(4)
       )
     val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
 
     def runStreamingResponseListener(
         metadata: grpc.Metadata
-    )(
+      )(
         sendResponses: Observable[Request] => Task[Unit]
-    ): Unit = {
+      ): Unit = {
       val handleResponse = for {
-        _ <- call.request(1) // Number tells expected request messages
         _ <- call.sendHeaders(metadata)
         _ <- sendResponses {
           subject
+            .doAfterSubscribe(call.request(1)) //Avoid loosing the first message
             .doOnNext(_ => call.request(1))
-            .takeWhile(_.isDefined)
-            .map(elem => elem.get)
         }
       } yield ()
 
@@ -228,14 +224,16 @@ object ServerCallHandlers {
 
     }
 
-    override def onCancel(): Unit =
+    override def onCancel(): Unit = {
       isCancelled.trySuccess(())
+    }
 
-    override def onHalfClose(): Unit =
-      Task.deferFuture(subject.onNext(None)).runSyncUnsafe()
+    override def onHalfClose(): Unit = {
+      subject.onComplete()
+    }
 
     override def onMessage(msg: Request): Unit = {
-      Task.deferFuture(subject.onNext(Some(msg))).runSyncUnsafe()
+      Task.deferFuture(subject.onNext(msg)).runSyncUnsafe()
     }
 
     override def onComplete(): Unit = subject.onComplete()
@@ -247,7 +245,7 @@ object ServerCallHandlers {
       call: ServerCall[T, R],
       handleResponse: Task[Unit],
       isCancelled: CancelablePromise[Unit]
-  ): Task[Unit] = {
+    ): Task[Unit] = {
     val finalHandler = handleResponse.guaranteeCase {
       case ExitCase.Completed => call.closeStream(grpc.Status.OK, new grpc.Metadata())
       case ExitCase.Canceled => call.closeStream(grpc.Status.CANCELLED, new grpc.Metadata())
@@ -265,7 +263,7 @@ object ServerCallHandlers {
       err: Throwable,
       call: ServerCall[T, R],
       unknownErrorMetadata: grpc.Metadata
-  ): Task[Unit] = {
+    ): Task[Unit] = {
     err match {
       case err: grpc.StatusException =>
         val metadata = Option(err.getTrailers).getOrElse(new grpc.Metadata())
