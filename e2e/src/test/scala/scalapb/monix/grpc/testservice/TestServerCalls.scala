@@ -9,7 +9,7 @@ import munit.Location
 import scalapb.monix.grpc.testservice.utils.SilentException
 
 import java.util.concurrent.TimeoutException
-import scala.concurrent.duration.DurationInt
+import scala.concurrent.duration.{Duration, DurationInt}
 
 class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLogging {
   val stub = clientFixture(8000, logger, false)
@@ -247,5 +247,6 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLog
     assert(e.isInstanceOf[StatusRuntimeException])
     assertEquals(e.getMessage, "INTERNAL: SILENT")
   }
-  //todo check if the calls to the server are 'lazy' i.e. if the task is not consumed no call to the server should have been made.
+
+  override def munitTimeout: Duration = 2.second
 }

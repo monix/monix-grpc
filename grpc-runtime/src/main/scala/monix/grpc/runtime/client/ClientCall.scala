@@ -14,12 +14,12 @@ import monix.execution.CancelablePromise
 class ClientCall[Request, Response] private (
     call: grpc.ClientCall[Request, Response],
     bufferCapacity: BufferCapacity
-) {
+  ) {
 
   def unaryToUnaryCall(
       message: Request,
       headers: grpc.Metadata
-  ): Task[Response] = Task.defer {
+    ): Task[Response] = Task.defer {
     val listener = ClientCallListeners.unary[Response]
     val makeCall = for {
       _ <- start(listener, headers)
@@ -35,13 +35,13 @@ class ClientCall[Request, Response] private (
   def unaryToStreamingCall(
       message: Request,
       headers: grpc.Metadata
-  )(implicit
+    )(
+      implicit
       scheduler: Scheduler
-  ): Observable[Response] = Observable.defer {
+    ): Observable[Response] = Observable.defer {
     val listener = ClientCallListeners.streaming[Response](bufferCapacity, request)
     val startCall = for {
       _ <- start(listener, headers)
-      _ <- request(1)
       _ <- sendMessage(message).guarantee(halfClose)
     } yield ()
 
@@ -53,7 +53,7 @@ class ClientCall[Request, Response] private (
   def streamingToUnaryCall(
       messages: Observable[Request],
       headers: grpc.Metadata
-  ): Task[Response] = Task.defer {
+    ): Task[Response] = Task.defer {
     val listener = ClientCallListeners.unary[Response]
     val makeCall = for {
       _ <- start(listener, headers)
@@ -77,7 +77,7 @@ class ClientCall[Request, Response] private (
   private def sendStreamingRequests(
       requests: Observable[Request],
       onReady: AsyncVar[Unit]
-  ): Task[Unit] = {
+    ): Task[Unit] = {
     def sendRequest(request: Request): Task[Unit] =
       if (call.isReady)
         sendMessage(request)
@@ -93,22 +93,19 @@ class ClientCall[Request, Response] private (
   def streamingToStreamingCall(
       requests: Observable[Request],
       headers: grpc.Metadata
-  )(implicit
+    )(
+      implicit
       scheduler: Scheduler
-  ): Observable[Response] = Observable.defer {
+    ): Observable[Response] = Observable.defer {
     val listener = ClientCallListeners.streaming[Response](bufferCapacity, request)
 
-    val startSignal = CancelablePromise[Unit]()
     val startCall: Task[Unit] = for {
-      _ <- Task.fromCancelablePromise(startSignal)
       _ <- start(listener, headers)
-      _ <- request(1)
       _ <- sendStreamingRequests(requests, listener.onReadyEffect)
     } yield ()
 
     val makeCall = startCall.start.map { sendRequestsFiber =>
       listener.incomingResponses
-        .doOnSubscribe(Task(startSignal.success(())))
         .guaranteeCase {
           case ExitCase.Completed => sendRequestsFiber.join
           case ExitCase.Canceled => sendRequestsFiber.cancel
@@ -149,18 +146,22 @@ class ClientCall[Request, Response] private (
   private def start(
       listener: grpc.ClientCall.Listener[Response],
       headers: grpc.Metadata
-  ): Task[Unit] = Task(call.start(listener, headers))
+    ): Task[Unit] = Task(call.start(listener, headers))
 
   /**
-   * Asks for two messages even though we expect only one so that if a
-   * misbehaving server sends more than one response we catch the contract
-   * violation and fail right away.
-   */
+    * Asks for two messages even though we expect only one so that if a
+    * misbehaving server sends more than one response we catch the contract
+    * violation and fail right away.
+    */
   private def requestMessagesFromUnaryCall: Task[Unit] =
     request(2)
 
-  private def request(numMessages: Int): Task[Unit] =
-    Task(call.request(numMessages))
+  private def request(numMessages: Int): Task[Unit] = {
+    Task {
+      println(s"request $numMessages")
+      call.request(numMessages)
+    }
+  }
 
   private def sendMessage(message: Request): Task[Unit] = {
     Task(call.sendMessage(message))
@@ -178,7 +179,7 @@ object ClientCall {
       channel: grpc.Channel,
       methodDescriptor: grpc.MethodDescriptor[Request, Response],
       callOptions: grpc.CallOptions
-  ): ClientCall[Request, Response] = {
+    ): ClientCall[Request, Response] = {
     new ClientCall(
       channel.newCall[Request, Response](methodDescriptor, callOptions),
       BufferCapacity.Bounded(32)

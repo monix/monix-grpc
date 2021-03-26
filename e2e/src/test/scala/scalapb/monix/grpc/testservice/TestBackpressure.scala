@@ -34,7 +34,6 @@ class TestBackpressure extends munit.FunSuite with GrpcServerFixture with LazyLo
 
     val requestStream = requests(Scenario.SLOW)
       .doOnNext(x => Task(subject.onNext(Instant.now())))
-//      .doOnNext(x => Task(println(x)))
 
     client
       .bidiStreaming(requestStream, new Metadata())

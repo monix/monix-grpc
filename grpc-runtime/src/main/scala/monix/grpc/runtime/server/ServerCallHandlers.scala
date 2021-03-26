@@ -5,7 +5,7 @@ import io.grpc
 import monix.eval.{Task, TaskLocal}
 import monix.execution.atomic.{AtomicAny, AtomicInt}
 import monix.execution.{AsyncQueue, AsyncVar, BufferCapacity, CancelablePromise, ChannelType, Scheduler}
-import monix.reactive.subjects.ConcurrentSubject
+import monix.reactive.subjects.{ConcurrentSubject, PublishSubject, PublishToOneSubject}
 import monix.reactive.{MulticastStrategy, Observable, OverflowStrategy}
 
 import java.time.Instant

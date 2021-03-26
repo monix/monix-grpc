@@ -7,13 +7,11 @@ import monix.execution.{AsyncVar, BufferCapacity, CancelablePromise, Scheduler}
 import monix.reactive.subjects.ConcurrentSubject
 import monix.reactive.{MulticastStrategy, Observable, OverflowStrategy}
 
-import java.time.Instant
-
 object ClientCallListeners {
   final case class CallStatus(
       status: grpc.Status,
       trailers: grpc.Metadata
-  ) {
+    ) {
     def isOk: Boolean = status.isOk()
     def toException: RuntimeException =
       status.asRuntimeException(trailers)
@@ -25,13 +23,13 @@ object ClientCallListeners {
   def streaming[R](
       bufferCapacity: BufferCapacity,
       request: Int => Task[Unit]
-  )(implicit
+    )(
+      implicit
       scheduler: Scheduler
-  ): StreamingClientCallListener[R] =
+    ): StreamingClientCallListener[R] =
     new StreamingClientCallListener(bufferCapacity, request)
 
-  private[client] final class UnaryClientCallListener[Response]
-      extends grpc.ClientCall.Listener[Response] {
+  private[client] final class UnaryClientCallListener[Response] extends grpc.ClientCall.Listener[Response] {
     private val statusPromise = CancelablePromise[CallStatus]()
     private val headers0 = Atomic(None: Option[grpc.Metadata])
     private val response0 = Atomic(None: Option[Response])
@@ -76,14 +74,15 @@ object ClientCallListeners {
   private[client] final class StreamingClientCallListener[Response](
       bufferCapacity: BufferCapacity,
       request: Int => Task[Unit]
-  )(implicit
+    )(
+      implicit
       scheduler: Scheduler
-  ) extends grpc.ClientCall.Listener[Response] {
-    private val callStatus0 = CancelablePromise[CallStatus]()
+    ) extends grpc.ClientCall.Listener[Response] {
+
     private val headers0 = Atomic(None: Option[grpc.Metadata])
     private val responses0 =
-      ConcurrentSubject[Option[Response]](
-        MulticastStrategy.replayLimited(2),
+      ConcurrentSubject[Response](
+        MulticastStrategy.publish,
         OverflowStrategy.Fail(4)
       )
 
@@ -91,15 +90,8 @@ object ClientCallListeners {
 
     def incomingResponses: Observable[Response] = {
       responses0
-        .takeWhile(_.isDefined)
-        .map(_.get)
+        .doAfterSubscribe(request(1))
         .doOnNext(_ => request(1))
-        .doOnComplete(
-          Task.fromCancelablePromise(callStatus0).flatMap { status =>
-            if (status.isOk) Task.unit
-            else Task.raiseError(status.toException)
-          }
-        )
     }
 
     override def onHeaders(headers: grpc.Metadata): Unit = {
@@ -107,12 +99,14 @@ object ClientCallListeners {
     }
 
     override def onClose(status: grpc.Status, trailers: grpc.Metadata): Unit = {
-      callStatus0.trySuccess(CallStatus(status, trailers))
-      Task.deferFuture(responses0.onNext(None)).runSyncUnsafe()
+      println("closed")
+      if (status.isOk) responses0.onComplete()
+      else responses0.onError(CallStatus(status, trailers).toException)
     }
 
     override def onMessage(message: Response): Unit = {
-      Task.deferFuture(responses0.onNext(Some(message))).runSyncUnsafe()
+      println("message received")
+      Task.deferFuture(responses0.onNext(message)).runSyncUnsafe()
     }
 
     override def onReady() = onReadyEffect.tryPut(())
