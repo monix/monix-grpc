@@ -12,10 +12,6 @@ import munit.FunSuite
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.{Duration, DurationInt, FiniteDuration}
 
-/**
-  * Copyright (C) 22.03.21 - REstore NV
-  */
-
 class ServerCallHandlersTest extends FunSuite {
   override def munitTimeout: Duration = 1.second
 
