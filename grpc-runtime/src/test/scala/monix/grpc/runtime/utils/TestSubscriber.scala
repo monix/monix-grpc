@@ -18,17 +18,14 @@ case class TestSubscriber[T](autoAcc: Boolean)(implicit val scheduler: Scheduler
   private val acks = AsyncVar.empty[Ack]()
   val nextEvent = AsyncVar.empty[T]()
 
-  def next = {
+  def next =
     nextEvent.take()
-  }
 
-  def continue = {
+  def continue =
     acks.put(Ack.Continue)
-  }
 
-  def stop = {
+  def stop =
     acks.put(Ack.Stop)
-  }
 
   override def onNext(elem: T): Future[Ack] = {
     onNextEvents = onNextEvents :+ elem
@@ -42,11 +39,9 @@ case class TestSubscriber[T](autoAcc: Boolean)(implicit val scheduler: Scheduler
     }
   }
 
-  override def onError(ex: Throwable): Unit = {
+  override def onError(ex: Throwable): Unit =
     onErrorEvents = onErrorEvents :+ ex
-  }
 
-  override def onComplete(): Unit = {
+  override def onComplete(): Unit =
     isComplete = true
-  }
 }

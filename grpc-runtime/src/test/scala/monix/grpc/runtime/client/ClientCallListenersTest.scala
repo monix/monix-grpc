@@ -38,11 +38,9 @@ class ClientCallListenersTest extends FunSuite {
     listener.onClose(Status.OK, new Metadata())
 
     for {
-      _ <- testSubscriber.next
-      _ <- {
-        assertEquals(requestCount.get(), 1)
-        testSubscriber.continue
-      }
+      _ <- Task(
+        assertEquals(requestCount.get(), 2)
+      ).runToFuture
       _ <- testSubscriber.next
       _ <- {
         assertEquals(requestCount.get(), 2)
@@ -51,6 +49,11 @@ class ClientCallListenersTest extends FunSuite {
       _ <- testSubscriber.next
       _ <- {
         assertEquals(requestCount.get(), 3)
+        testSubscriber.continue
+      }
+      _ <- testSubscriber.next
+      _ <- {
+        assertEquals(requestCount.get(), 4)
         testSubscriber.continue
       }
     } yield {}

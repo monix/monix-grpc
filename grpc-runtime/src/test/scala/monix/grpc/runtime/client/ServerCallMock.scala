@@ -26,17 +26,15 @@ final case class ServerCallMock[Request, Response]()(implicit val scheduler: Sch
     requestCount.increment(numMessages)
   }
 
-  def cancel = {
+  def cancel =
     isCancelled = true
-  }
 
   override def sendHeaders(headers: Metadata): Unit = this.headers.onNext(headers)
 
   override def sendMessage(message: Response): Unit = this.sendMessages.onNext(message)
 
-  override def close(status: Status, trailers: Metadata): Unit = {
+  override def close(status: Status, trailers: Metadata): Unit =
     closeValue.put((status, trailers))
-  }
 
   var isCancelled: Boolean = false
 

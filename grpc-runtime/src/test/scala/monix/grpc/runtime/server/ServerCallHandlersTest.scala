@@ -13,13 +13,13 @@ import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.{Duration, DurationInt, FiniteDuration}
 
 /**
- * Copyright (C) 22.03.21 - REstore NV
- */
+  * Copyright (C) 22.03.21 - REstore NV
+  */
 
 class ServerCallHandlersTest extends FunSuite {
   override def munitTimeout: Duration = 1.second
 
-  test("StreamingCallListener initially requests 1 response") {
+  test("StreamingCallListener initially requests 1 response plus 1 for the onNext") {
     val mock = ServerCallMock[Int, Int]()
     val listener =
       new StreamingCallListener[Int, Int](
@@ -29,7 +29,7 @@ class ServerCallHandlersTest extends FunSuite {
     listener.runStreamingResponseListener(new Metadata())(_ => Task.never)
 
     mock.requestAmount.firstL
-      .map(assertEquals(_, 1))
+      .map(assertEquals(_, 2))
       .runToFuture
   }
 

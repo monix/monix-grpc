@@ -156,14 +156,12 @@ class ClientCall[Request, Response] private (
 
   private def request(numMessages: Int): Task[Unit] = {
     Task {
-      println(s"request $numMessages")
       call.request(numMessages)
     }
   }
 
-  private def sendMessage(message: Request): Task[Unit] = {
+  private def sendMessage(message: Request): Task[Unit] =
     Task(call.sendMessage(message))
-  }
 
   private def halfClose: Task[Unit] =
     Task(call.halfClose())

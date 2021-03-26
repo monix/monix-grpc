@@ -226,17 +226,14 @@ object ServerCallHandlers {
 
     }
 
-    override def onCancel(): Unit = {
+    override def onCancel(): Unit =
       isCancelled.trySuccess(())
-    }
 
-    override def onHalfClose(): Unit = {
+    override def onHalfClose(): Unit =
       subject.onComplete()
-    }
 
-    override def onMessage(msg: Request): Unit = {
+    override def onMessage(msg: Request): Unit =
       Task.deferFuture(subject.onNext(msg)).runSyncUnsafe()
-    }
 
     override def onComplete(): Unit = subject.onComplete()
 

@@ -13,9 +13,8 @@ class ServerCall[Request, Response] private (
 
   def isReady: Boolean = call.isReady
 
-  def request(numMessages: Int): Task[Unit] = {
+  def request(numMessages: Int): Task[Unit] =
     handleError(Task(call.request(numMessages)), s"Failed to request message $numMessages!")
-  }
 
   /**
    * Asks for two messages even though we expect only one so that if a
@@ -28,9 +27,8 @@ class ServerCall[Request, Response] private (
   def sendHeaders(headers: grpc.Metadata): Task[Unit] =
     handleError(Task(call.sendHeaders(headers)), s"Failed to send headers!", headers)
 
-  def sendMessage(message: Response): Task[Unit] = {
+  def sendMessage(message: Response): Task[Unit] =
     handleError(Task(call.sendMessage(message)), s"Failed to send message $message!")
-  }
 
   def sendStreamingResponses(
       responses: Observable[Response],

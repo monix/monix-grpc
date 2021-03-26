@@ -93,20 +93,15 @@ object ClientCallListeners {
         .doOnNext(_ => request(1))
     }
 
-    override def onHeaders(headers: grpc.Metadata): Unit = {
+    override def onHeaders(headers: grpc.Metadata): Unit =
       headers0.compareAndSet(None, Some(headers))
-    }
 
-    override def onClose(status: grpc.Status, trailers: grpc.Metadata): Unit = {
-      println("closed")
+    override def onClose(status: grpc.Status, trailers: grpc.Metadata): Unit =
       if (status.isOk) responses0.onComplete()
       else responses0.onError(CallStatus(status, trailers).toException)
-    }
 
-    override def onMessage(message: Response): Unit = {
-      println("message received")
+    override def onMessage(message: Response): Unit =
       Task.deferFuture(responses0.onNext(message)).runSyncUnsafe()
-    }
 
     override def onReady() = onReadyEffect.tryPut(())
   }
