@@ -10,9 +10,9 @@ import monix.reactive.{MulticastStrategy, Observable, OverflowStrategy}
 object ClientCallListeners {
 
   final case class CallStatus(
-                               status: grpc.Status,
-                               trailers: grpc.Metadata
-                             ) {
+      status: grpc.Status,
+      trailers: grpc.Metadata
+  ) {
     def isOk: Boolean = status.isOk()
 
     def toException: RuntimeException =
@@ -103,7 +103,7 @@ object ClientCallListeners {
     override def onMessage(message: Response): Unit =
       Task.deferFuture(responses0.onNext(message)).runSyncUnsafe()
 
-    override def onReady() =
+    override def onReady(): Unit =
       onReadyEffect.tryPut(())
   }
 }

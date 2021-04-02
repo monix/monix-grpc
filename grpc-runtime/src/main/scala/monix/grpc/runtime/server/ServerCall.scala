@@ -6,9 +6,9 @@ import monix.execution.{AsyncVar, BufferCapacity}
 import monix.reactive.Observable
 
 // TODO: Add attributes, compression, message compression.
-class ServerCall[Request, Response] private(
-                                             val call: grpc.ServerCall[Request, Response]
-                                           ) extends AnyVal {
+class ServerCall[Request, Response] private (
+    val call: grpc.ServerCall[Request, Response]
+) extends AnyVal {
 
   def isReady: Boolean = call.isReady
 

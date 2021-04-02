@@ -6,13 +6,13 @@ import monix.eval.{Task, TaskLocal}
 import monix.execution.{AsyncVar, Scheduler}
 import monix.reactive.Observable
 
-class ClientCall[Request, Response] private[client](val call: grpc.ClientCall[Request, Response])
-  extends AnyVal {
+class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[Request, Response])
+    extends AnyVal {
 
   def unaryToUnaryCall(
-                        message: Request,
-                        headers: grpc.Metadata
-                      ): Task[Response] = Task.defer {
+      message: Request,
+      headers: grpc.Metadata
+  ): Task[Response] = Task.defer {
     val listener = ClientCallListeners.unary[Response]
     val makeCall = for {
       _ <- start(listener, headers)
@@ -111,7 +111,7 @@ class ClientCall[Request, Response] private[client](val call: grpc.ClientCall[Re
             case ExitCase.Error(err) => sendRequestsFiber.cancel
           }
       )
-      )
+    )
 
     runResponseObservableHandler(isolateObservable(Observable.fromTask(makeCall).flatten))
   }
