@@ -1,30 +1,27 @@
 package monix.grpc.runtime.client
 
-import io.grpc
-import monix.eval.Task
 import cats.effect.ExitCase
-import monix.execution.{AsyncVar, BufferCapacity, Cancelable, Scheduler}
+import io.grpc
+import monix.eval.{Task, TaskLocal}
+import monix.execution.{AsyncVar, Scheduler}
 import monix.reactive.Observable
-import monix.reactive.OverflowStrategy
-import monix.eval.TaskLocal
 
-import java.time.Instant
-import monix.execution.CancelablePromise
-
-class ClientCall[Request, Response] private (
-    call: grpc.ClientCall[Request, Response],
-    bufferCapacity: BufferCapacity
-) {
+class ClientCall[Request, Response] private[client](val call: grpc.ClientCall[Request, Response])
+  extends AnyVal {
 
   def unaryToUnaryCall(
-      message: Request,
-      headers: grpc.Metadata
-  ): Task[Response] = Task.defer {
+                        message: Request,
+                        headers: grpc.Metadata
+                      ): Task[Response] = Task.defer {
     val listener = ClientCallListeners.unary[Response]
     val makeCall = for {
       _ <- start(listener, headers)
       _ <- requestMessagesFromUnaryCall
-      _ <- sendMessage(message).guarantee(halfClose)
+      _ <- sendMessage(message).guaranteeCase {
+        case ExitCase.Completed => halfClose
+        case ExitCase.Error(e) => cancel("error", Some(e))
+        case ExitCase.Canceled => cancel("canceled", None)
+      }
       response <- listener.waitForResponse
     } yield response
     TaskLocal
@@ -38,10 +35,14 @@ class ClientCall[Request, Response] private (
   )(implicit
       scheduler: Scheduler
   ): Observable[Response] = Observable.defer {
-    val listener = ClientCallListeners.streaming[Response](bufferCapacity, request)
+    val listener = ClientCallListeners.streaming[Response](request)
     val startCall = for {
       _ <- start(listener, headers)
-      _ <- sendMessage(message).guarantee(halfClose)
+      _ <- sendMessage(message).guaranteeCase {
+        case ExitCase.Completed => halfClose
+        case ExitCase.Error(e) => cancel("error", Some(e))
+        case ExitCase.Canceled => cancel("canceled", None)
+      }
     } yield ()
 
     runResponseObservableHandler(
@@ -86,7 +87,11 @@ class ClientCall[Request, Response] private (
     requests
       .mapEval(sendRequest)
       .completedL
-      .guarantee(halfClose)
+      .guaranteeCase {
+        case ExitCase.Completed => halfClose
+        case ExitCase.Error(e) => cancel("failed", Some(e))
+        case ExitCase.Canceled => cancel("call canceled", None)
+      }
   }
 
   def streamingToStreamingCall(
@@ -95,21 +100,18 @@ class ClientCall[Request, Response] private (
   )(implicit
       scheduler: Scheduler
   ): Observable[Response] = Observable.defer {
-    val listener = ClientCallListeners.streaming[Response](bufferCapacity, request)
+    val listener = ClientCallListeners.streaming[Response](request)
 
-    val startCall: Task[Unit] = for {
-      _ <- start(listener, headers)
-      _ <- sendStreamingRequests(requests, listener.onReadyEffect)
-    } yield ()
-
-    val makeCall = startCall.start.map { sendRequestsFiber =>
-      listener.incomingResponses
-        .guaranteeCase {
-          case ExitCase.Completed => sendRequestsFiber.join
-          case ExitCase.Canceled => sendRequestsFiber.cancel
-          case ExitCase.Error(err) => sendRequestsFiber.cancel
-        }
-    }
+    val makeCall = start(listener, headers) *> (
+      sendStreamingRequests(requests, listener.onReadyEffect).start.map(sendRequestsFiber =>
+        listener.incomingResponses
+          .guaranteeCase {
+            case ExitCase.Completed => sendRequestsFiber.join
+            case ExitCase.Canceled => sendRequestsFiber.cancel
+            case ExitCase.Error(err) => sendRequestsFiber.cancel
+          }
+      )
+      )
 
     runResponseObservableHandler(isolateObservable(Observable.fromTask(makeCall).flatten))
   }
@@ -177,8 +179,7 @@ object ClientCall {
       callOptions: grpc.CallOptions
   ): ClientCall[Request, Response] = {
     new ClientCall(
-      channel.newCall[Request, Response](methodDescriptor, callOptions),
-      BufferCapacity.Bounded(32)
+      channel.newCall[Request, Response](methodDescriptor, callOptions)
     )
   }
 }

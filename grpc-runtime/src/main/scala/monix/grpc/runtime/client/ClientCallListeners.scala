@@ -3,16 +3,18 @@ package monix.grpc.runtime.client
 import io.grpc
 import monix.eval.Task
 import monix.execution.atomic.Atomic
-import monix.execution.{AsyncVar, BufferCapacity, CancelablePromise, Scheduler}
+import monix.execution.{AsyncVar, CancelablePromise, Scheduler}
 import monix.reactive.subjects.ConcurrentSubject
 import monix.reactive.{MulticastStrategy, Observable, OverflowStrategy}
 
 object ClientCallListeners {
+
   final case class CallStatus(
-      status: grpc.Status,
-      trailers: grpc.Metadata
-  ) {
+                               status: grpc.Status,
+                               trailers: grpc.Metadata
+                             ) {
     def isOk: Boolean = status.isOk()
+
     def toException: RuntimeException =
       status.asRuntimeException(trailers)
   }
@@ -21,12 +23,11 @@ object ClientCallListeners {
     new UnaryClientCallListener()
 
   def streaming[R](
-      bufferCapacity: BufferCapacity,
       request: Int => Task[Unit]
   )(implicit
       scheduler: Scheduler
   ): StreamingClientCallListener[R] =
-    new StreamingClientCallListener(bufferCapacity, request)
+    new StreamingClientCallListener(request)
 
   private[client] final class UnaryClientCallListener[Response]
       extends grpc.ClientCall.Listener[Response] {
@@ -72,7 +73,6 @@ object ClientCallListeners {
   }
 
   private[client] final class StreamingClientCallListener[Response](
-      bufferCapacity: BufferCapacity,
       request: Int => Task[Unit]
   )(implicit
       scheduler: Scheduler
@@ -81,7 +81,7 @@ object ClientCallListeners {
     private val headers0 = Atomic(None: Option[grpc.Metadata])
     private val responses0 =
       ConcurrentSubject[Response](
-        MulticastStrategy.replayLimited(2),
+        MulticastStrategy.publish,
         OverflowStrategy.Fail(4)
       )
 
@@ -103,6 +103,7 @@ object ClientCallListeners {
     override def onMessage(message: Response): Unit =
       Task.deferFuture(responses0.onNext(message)).runSyncUnsafe()
 
-    override def onReady() = onReadyEffect.tryPut(())
+    override def onReady() =
+      onReadyEffect.tryPut(())
   }
 }

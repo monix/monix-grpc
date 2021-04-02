@@ -9,23 +9,23 @@ import monix.grpc.runtime.server.ServerCallHandlers.StreamingCallListener
 import monix.grpc.runtime.utils.TestSubscriber
 import munit.FunSuite
 
-import java.util.concurrent.TimeUnit
-import scala.concurrent.duration.{Duration, DurationInt, FiniteDuration}
+import scala.concurrent.duration.{Duration, DurationInt}
 
 class ServerCallHandlersTest extends FunSuite {
   override def munitTimeout: Duration = 1.second
 
-  test("StreamingCallListener initially requests 1 response plus 1 for the onNext") {
+  test("StreamingCallListener initially requests 1 response afterSubscribe") {
     val mock = ServerCallMock[Int, Int]()
     val listener =
       new StreamingCallListener[Int, Int](
         ServerCall(mock, ServerCallOptions.default),
         BufferCapacity.Unbounded()
       )
-    listener.runStreamingResponseListener(new Metadata())(_ => Task.never)
+
+    listener.runStreamingResponseListener(new Metadata())(_.lastOptionL.map(_ => ()))
 
     mock.requestAmount.firstL
-      .map(assertEquals(_, 2))
+      .map(assertEquals(_, 1))
       .runToFuture
   }
 

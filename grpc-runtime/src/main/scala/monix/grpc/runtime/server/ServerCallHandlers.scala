@@ -3,19 +3,10 @@ package monix.grpc.runtime.server
 import cats.effect.ExitCase
 import io.grpc
 import monix.eval.{Task, TaskLocal}
-import monix.execution.atomic.{AtomicAny, AtomicInt}
-import monix.execution.{
-  AsyncQueue,
-  AsyncVar,
-  BufferCapacity,
-  CancelablePromise,
-  ChannelType,
-  Scheduler
-}
-import monix.reactive.subjects.{ConcurrentSubject, PublishSubject, PublishToOneSubject}
+import monix.execution.atomic.AtomicAny
+import monix.execution.{AsyncVar, BufferCapacity, CancelablePromise, Scheduler}
+import monix.reactive.subjects.ConcurrentSubject
 import monix.reactive.{MulticastStrategy, Observable, OverflowStrategy}
-
-import java.time.Instant
 
 /**
  * Defines the grpc service API handlers that are used in the stub code
@@ -27,8 +18,8 @@ object ServerCallHandlers {
    * Defines a grpc service call handler that receives only one request from the
    * client and returns one response from the server.
    *
-   * @param f is the function that turns a request and metadata into a response.
-   * @param options is the configuration to configure options for this call.
+   * @param f         is the function that turns a request and metadata into a response.
+   * @param options   is the configuration to configure options for this call.
    * @param scheduler is the (implicit) scheduler available in the service definition.
    * @return a grpc server call handler that will be responsible for processing this call.
    */
@@ -200,7 +191,7 @@ object ServerCallHandlers {
     private val isCancelled = CancelablePromise[Unit]()
     private val subject =
       ConcurrentSubject[Request](
-        MulticastStrategy.replayLimited(2),
+        MulticastStrategy.publish,
         OverflowStrategy.Fail(4)
       )
     val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
@@ -235,9 +226,11 @@ object ServerCallHandlers {
     override def onMessage(msg: Request): Unit =
       Task.deferFuture(subject.onNext(msg)).runSyncUnsafe()
 
-    override def onComplete(): Unit = subject.onComplete()
+    override def onComplete(): Unit =
+      subject.onComplete()
 
-    override def onReady(): Unit = onReadyEffect.tryPut(())
+    override def onReady(): Unit =
+      onReadyEffect.tryPut(())
   }
 
   private def runResponseHandler[T, R](

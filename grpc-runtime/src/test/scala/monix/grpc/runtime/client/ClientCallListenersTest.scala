@@ -2,7 +2,6 @@ package monix.grpc.runtime.client
 
 import io.grpc.{Metadata, Status}
 import monix.eval.Task
-import monix.execution.BufferCapacity
 import monix.execution.Scheduler.Implicits.global
 import monix.execution.atomic.AtomicInt
 import monix.grpc.runtime.utils.TestSubscriber
@@ -17,7 +16,7 @@ class ClientCallListenersTest extends FunSuite {
   }
 
   test("a streaming call listener onReady() triggers the onReadyEffect") {
-    val listener = ClientCallListeners.streaming[Int](BufferCapacity.Bounded(128), _ => Task(()))
+    val listener = ClientCallListeners.streaming[Int](_ => Task(()))
     assert(listener.onReadyEffect.tryTake().isEmpty)
     listener.onReady()
     assert(listener.onReadyEffect.tryTake().isDefined)
@@ -28,7 +27,7 @@ class ClientCallListenersTest extends FunSuite {
     val testSubscriber = new TestSubscriber[Int](false)
 
     val listener = ClientCallListeners
-      .streaming[Int](BufferCapacity.Bounded(8), c => Task(requestCount.transform(_ + c)))
+      .streaming[Int](c => Task(requestCount.transform(_ + c)))
 
     assertEquals(requestCount.get(), 0)
     listener.incomingResponses.subscribe(testSubscriber)
