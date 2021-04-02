@@ -7,6 +7,8 @@ import monix.execution.atomic.AtomicInt
 import monix.grpc.runtime.utils.TestSubscriber
 import munit.FunSuite
 
+import scala.concurrent.duration.DurationInt
+
 class ClientCallListenersTest extends FunSuite {
   test("an unary call listener onReady() triggers the onReadyEffect") {
     val listener = ClientCallListeners.unary[Int]
@@ -37,9 +39,6 @@ class ClientCallListenersTest extends FunSuite {
     listener.onClose(Status.OK, new Metadata())
 
     for {
-      _ <- Task(
-        assertEquals(requestCount.get(), 2)
-      ).runToFuture
       _ <- testSubscriber.next
       _ <- {
         assertEquals(requestCount.get(), 2)
