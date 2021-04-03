@@ -79,10 +79,8 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
       onReady: AsyncVar[Unit]
   ): Task[Unit] = {
     def sendRequest(request: Request): Task[Unit] =
-      if (call.isReady)
-        sendMessage(request)
-      else
-        Task.fromFuture(onReady.take()).>>(sendMessage(request))
+      if (call.isReady) sendMessage(request)
+      else Task.fromFuture(onReady.take()).>>(sendMessage(request))
 
     requests
       .mapEval(sendRequest)
@@ -104,12 +102,11 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
 
     val makeCall = start(listener, headers) *> (
       sendStreamingRequests(requests, listener.onReadyEffect).start.map(sendRequestsFiber =>
-        listener.incomingResponses
-          .guaranteeCase {
-            case ExitCase.Completed => sendRequestsFiber.join
-            case ExitCase.Canceled => sendRequestsFiber.cancel
-            case ExitCase.Error(err) => sendRequestsFiber.cancel
-          }
+        listener.incomingResponses.guaranteeCase {
+          case ExitCase.Completed => sendRequestsFiber.join
+          case ExitCase.Canceled => sendRequestsFiber.cancel
+          case ExitCase.Error(err) => sendRequestsFiber.cancel
+        }
       )
     )
 
@@ -156,11 +153,8 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
   private def requestMessagesFromUnaryCall: Task[Unit] =
     request(2)
 
-  private def request(numMessages: Int): Task[Unit] = {
-    Task {
-      call.request(numMessages)
-    }
-  }
+  private def request(numMessages: Int): Task[Unit] =
+    Task(call.request(numMessages))
 
   private def sendMessage(message: Request): Task[Unit] =
     Task(call.sendMessage(message))
