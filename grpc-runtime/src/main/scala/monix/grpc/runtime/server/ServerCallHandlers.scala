@@ -18,8 +18,8 @@ object ServerCallHandlers {
    * Defines a grpc service call handler that receives only one request from the
    * client and returns one response from the server.
    *
-   * @param f         is the function that turns a request and metadata into a response.
-   * @param options   is the configuration to configure options for this call.
+   * @param f is the function that turns a request and metadata into a response.
+   * @param options is the configuration to configure options for this call.
    * @param scheduler is the (implicit) scheduler available in the service definition.
    * @return a grpc server call handler that will be responsible for processing this call.
    */
