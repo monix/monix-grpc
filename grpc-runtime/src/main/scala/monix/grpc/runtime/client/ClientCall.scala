@@ -157,8 +157,11 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
 
   /**
    * Asks for two messages even though we expect only one so that if a
-   * misbehaving server sends more than one response we catch the contract
-   * violation and fail right away.
+   * misbehaving client sends more than one response in a unary call we catch
+   * the contract violation and fail right away.
+   *
+   * @note This is a trick employed by the official grpc-java, check the
+   *  source if you want to learn more.
    */
   private def requestMessagesFromUnaryCall: Task[Unit] =
     request(2)

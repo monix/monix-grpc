@@ -66,7 +66,10 @@ object ServerCallHandlers {
       val listener = new UnaryCallListener(call, scheduler)
 
       listener.runUnaryResponseListener(metadata) { msg =>
-        call.sendStreamingResponses(Observable.defer(f(msg, metadata)), listener.onReadyEffect)
+        call.sendStreamingResponses(
+          Observable.defer(f(msg, metadata)),
+          listener.onReadyEffect
+        )
       }
       listener
     }
@@ -176,7 +179,10 @@ object ServerCallHandlers {
       val call = ServerCall(grpcCall, options)
       val listener = new StreamingCallListener(call, options.bufferCapacity)(scheduler)
       listener.runStreamingResponseListener(metadata) { msgs =>
-        call.sendStreamingResponses(Observable.defer(f(msgs, metadata)), listener.onReadyEffect)
+        call.sendStreamingResponses(
+          Observable.defer(f(msgs, metadata)),
+          listener.onReadyEffect
+        )
       }
       listener
     }
@@ -205,7 +211,7 @@ object ServerCallHandlers {
         _ <- call.sendHeaders(metadata)
         _ <- sendResponses {
           subject
-            .doAfterSubscribe(call.request(1)) //Avoid loosing the first message
+            .doAfterSubscribe(call.request(1))
             .doOnNext(_ => call.request(1))
         }
       } yield ()
@@ -246,9 +252,7 @@ object ServerCallHandlers {
 
     // If `isCancelled` is completed, then client cancelled the grpc call and
     // `finalHandler` will be cancelled automatically by the `race` method
-    Task
-      .race(finalHandler, Task.fromCancelablePromise(isCancelled))
-      .void
+    Task.race(finalHandler, Task.fromCancelablePromise(isCancelled)).void
   }
 
   private def reportError[T, R](
