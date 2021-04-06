@@ -85,12 +85,7 @@ object ClientCallListeners {
     )
 
     val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
-
-    def incomingResponses: Observable[Response] = {
-      responses0
-        .doAfterSubscribe(request(1))
-        .doOnNext(_ => request(1))
-    }
+    def incomingResponses: Observable[Response] = responses0
 
     override def onHeaders(headers: grpc.Metadata): Unit =
       headers0.compareAndSet(None, Some(headers))

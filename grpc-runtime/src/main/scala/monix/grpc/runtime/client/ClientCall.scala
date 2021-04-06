@@ -38,6 +38,7 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
     val listener = ClientCallListeners.streaming[Response](request)
     val startCall = for {
       _ <- start(listener, headers)
+      _ <- request(1)
       _ <- sendMessage(message).guaranteeCase {
         case ExitCase.Completed => halfClose
         case ExitCase.Error(e) => cancel("error", Some(e))
@@ -46,7 +47,11 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
     } yield ()
 
     runResponseObservableHandler(
-      isolateObservable(listener.incomingResponses.doOnSubscribe(startCall))
+      isolateObservable(
+        listener.incomingResponses
+          .doAfterSubscribe(startCall)
+          .doOnNext(_ => request(1))
+      )
     )
   }
 
@@ -100,17 +105,22 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
   ): Observable[Response] = Observable.defer {
     val listener = ClientCallListeners.streaming[Response](request)
 
-    val makeCall = start(listener, headers) *> (
-      sendStreamingRequests(requests, listener.onReadyEffect).start.map(sendRequestsFiber =>
-        listener.incomingResponses.guaranteeCase {
-          case ExitCase.Completed => sendRequestsFiber.join
-          case ExitCase.Canceled => sendRequestsFiber.cancel
-          case ExitCase.Error(err) => sendRequestsFiber.cancel
-        }
-      )
-    )
+    val makeCall = start(listener, headers).>> {
+      sendStreamingRequests(requests, listener.onReadyEffect).start.map { sendRequestsFiber =>
+        listener.incomingResponses
+          .doAfterSubscribe(request(1))
+          .doOnNext(_ => request(1))
+          .guaranteeCase {
+            case ExitCase.Completed => sendRequestsFiber.join
+            case ExitCase.Canceled => sendRequestsFiber.cancel
+            case ExitCase.Error(err) => sendRequestsFiber.cancel
+          }
+      }
+    }
 
-    runResponseObservableHandler(isolateObservable(Observable.fromTask(makeCall).flatten))
+    runResponseObservableHandler(
+      isolateObservable(Observable.fromTask(makeCall).flatten)
+    )
   }
 
   private def runResponseTaskHandler[R](response: Task[R]): Task[R] = {
