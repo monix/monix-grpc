@@ -1,14 +1,17 @@
 package monix.grpc.runtime.client
 
+import munit.FunSuite
+
 import io.grpc
 import io.grpc.ClientCall.Listener
 import io.grpc.{Metadata, Status}
+
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import monix.execution.atomic.AtomicBoolean
 import monix.reactive.subjects.ConcurrentSubject
 import monix.reactive.{MulticastStrategy, Observable}
-import munit.FunSuite
+import monix.grpc.runtime.utils.ClientCallMock
 
 import scala.concurrent.Promise
 import scala.concurrent.duration.DurationInt
@@ -38,7 +41,7 @@ class ClientCallTest extends FunSuite {
       assertEquals(amountRequested, 2)
       assertEquals(messageSend, 1)
       assertEquals(response, 2)
-      assert(mock.halveClose.get)
+      assert(mock.halfClosed.get)
     }
     test.runToFuture
   }
@@ -129,66 +132,3 @@ class ClientCallTest extends FunSuite {
   }
 
 }
-
-class ClientCallMock[Req, Res](var isReadyVal: Boolean = true) extends grpc.ClientCall[Req, Res] {
-  val hasStarted = AtomicBoolean(false)
-
-  val requestAmount = ConcurrentSubject[Int](MulticastStrategy.replay)
-  val sendMessages = ConcurrentSubject[Req](MulticastStrategy.replay)
-  val cancel = ConcurrentSubject[(String, Throwable)](MulticastStrategy.replay)
-  val halveClose = AtomicBoolean(false)
-
-  private val listenerVal: Promise[Listener[Res]] = Promise[Listener[Res]]()
-
-  val listener: Task[Listener[Res]] = Task.fromFuture(listenerVal.future)
-
-  override def start(responseListener: Listener[Res], headers: Metadata): Unit = {
-    hasStarted.getAndSet(true)
-    listenerVal.success(responseListener)
-  }
-
-  override def request(numMessages: Int): Unit = {
-    if (hasStarted.get()) {
-      requestAmount.onNext(numMessages)
-    } else {
-      requestAmount.onError(UsedBeforeStart)
-    }
-  }
-
-  override def cancel(message: String, cause: Throwable): Unit = {
-    if (hasStarted.get()) {
-      cancel.onNext((message, cause))
-    } else {
-      cancel.onError(UsedBeforeStart)
-    }
-  }
-
-  override def halfClose(): Unit = {
-    if (hasStarted.get()) {
-      halveClose.set(true)
-    }
-  }
-
-  override def sendMessage(message: Req): Unit = {
-    if (hasStarted.get()) {
-      sendMessages.onNext(message)
-    } else {
-      sendMessages.onError(UsedBeforeStart)
-    }
-  }
-
-  override def isReady(): Boolean = isReadyVal
-
-  def triggerIsReady() =
-    listener.map(_.onReady())
-
-  def complete() = {
-    Task {
-      requestAmount.onComplete()
-      sendMessages.onComplete()
-      cancel.onComplete()
-    }.delayExecution(5.milli)
-  }
-}
-
-case object UsedBeforeStart extends RuntimeException("used before start")
