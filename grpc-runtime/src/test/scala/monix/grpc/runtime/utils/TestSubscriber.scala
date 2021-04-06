@@ -5,10 +5,6 @@ import monix.reactive.observers.Subscriber
 
 import scala.concurrent.Future
 
-/**
- * Copyright (C) 22.03.21 - REstore NV
- */
-
 case class TestSubscriber[T](autoAcc: Boolean)(implicit val scheduler: Scheduler)
     extends Subscriber[T] {
 

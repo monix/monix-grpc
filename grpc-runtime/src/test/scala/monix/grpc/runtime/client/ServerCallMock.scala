@@ -6,10 +6,6 @@ import monix.execution.atomic.AtomicInt
 import monix.reactive.MulticastStrategy
 import monix.reactive.subjects.{ConcurrentSubject, Subject}
 
-/**
- * Copyright (C) 22.03.21 - REstore NV
- */
-
 final case class ServerCallMock[Request, Response]()(implicit val scheduler: Scheduler)
     extends ServerCall[Request, Response] {
   val requestCount: AtomicInt = AtomicInt.apply(0)
