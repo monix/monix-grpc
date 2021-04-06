@@ -79,11 +79,10 @@ object ClientCallListeners {
   ) extends grpc.ClientCall.Listener[Response] {
 
     private val headers0 = Atomic(None: Option[grpc.Metadata])
-    private val responses0 =
-      ConcurrentSubject[Response](
-        MulticastStrategy.publish,
-        OverflowStrategy.Fail(4)
-      )
+    private val responses0 = ConcurrentSubject[Response](
+      MulticastStrategy.publish,
+      OverflowStrategy.Unbounded
+    )
 
     val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
 
