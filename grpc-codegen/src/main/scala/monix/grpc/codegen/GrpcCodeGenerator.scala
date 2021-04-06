@@ -1,12 +1,11 @@
 package monix.grpc.codegen
-import scalapb.options.Scalapb
 import com.google.protobuf.Descriptors.FileDescriptor
 import com.google.protobuf.ExtensionRegistry
 import com.google.protobuf.compiler.PluginProtos.CodeGeneratorResponse
 import protocbridge.Artifact
 import protocgen.{CodeGenApp, CodeGenRequest, CodeGenResponse}
 import scalapb.compiler.{DescriptorImplicits, FunctionalPrinter, ProtobufGenerator}
-
+import scalapb.options.Scalapb
 import monix.grpc.codegen.build.BuildInfo
 
 case class CodeGenParams(serviceSuffix: String = "Api")
@@ -23,7 +22,7 @@ object GrpcCodeGenerator extends CodeGenApp {
     ProtobufGenerator.parseParameters(request.parameter) match {
       case Right(params) =>
         val codeGenParams = CodeGenParams()
-        val implicits = new DescriptorImplicits(params, request.allProtos)
+        val implicits = DescriptorImplicits.fromCodeGenRequest(params, request)
         val filesWithServices = request.filesToGenerate.collect {
           case file if !file.getServices().isEmpty() => file
         }

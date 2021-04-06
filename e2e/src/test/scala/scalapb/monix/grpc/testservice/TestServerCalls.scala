@@ -1,5 +1,6 @@
 package scalapb.monix.grpc.testservice
 
+import com.typesafe.scalalogging.LazyLogging
 import io.grpc.{Metadata, Server, StatusRuntimeException}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -8,10 +9,10 @@ import munit.Location
 import scalapb.monix.grpc.testservice.utils.SilentException
 
 import java.util.concurrent.TimeoutException
-import scala.concurrent.duration.DurationInt
+import scala.concurrent.duration.{Duration, DurationInt}
 
-class TestServerCalls extends munit.FunSuite with GrpcServerFixture {
-  val stub = clientFixture(8000)
+class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLogging {
+  val stub = clientFixture(8000, logger, false)
   override def munitFixtures = List(stub)
 
   implicit val opt = Task.defaultOptions.enableLocalContextPropagation
@@ -21,7 +22,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture {
     client
       .unary(Request(Request.Scenario.OK), new Metadata())
       .map { r =>
-        assertEquals(r, ok)
+        assertEquals(r.out, 1)
       }
       .runToFutureOpt
   }
@@ -55,7 +56,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture {
       .serverStreaming(Request(Request.Scenario.OK), new Metadata())
       .toListL
       .map { r =>
-        assertEquals(r, okStream)
+        assert(r.map(_.out) == Seq(1, 2))
       }
       .runToFutureOpt
   }
@@ -80,8 +81,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture {
       .onErrorHandle(Left(_))
       .toListL
       .map { responses =>
-        assertEquals(responses.take(2).map(_.right.get), okStream)
-        assertEquals(responses.take(2).map(_.right.get), okStream)
+        assert(responses.take(2).map(_.right.get.out) == Seq(1, 2))
       }
       .runToFutureOpt
   }
@@ -105,7 +105,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture {
 
     def response = client
       .clientStreaming(subject, new Metadata())
-      .map(r => assertEquals(r, Response("OK3")))
+      .map(r => assertEquals(r.out, 3))
       .runToFutureOpt
 
     for {
@@ -177,13 +177,13 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture {
     response
   }
 
-  test("bidiStreaming call success") {
+  test("bidiStreaming call succeeds") {
     val client = stub()
     val subject = ReplaySubject[Request]()
     val response = client
       .bidiStreaming(subject, new Metadata())
       .toListL
-      .map(r => assertEquals(r, List(Response("OK1"))))
+      .map(r => assertEquals(r.map(_.out), List(1)))
       .runToFutureOpt
 
     for {
@@ -217,7 +217,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture {
       .toListL
       .redeem(
         expectedException,
-        r => fail(s"The server should not return a response $r")
+        r => assertEquals(r.size, 2)
       )
       .runToFutureOpt
 
@@ -243,12 +243,10 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture {
     response
   }
 
-  private val ok = Response("OK")
-  private val okStream = List(Response("OK1"), Response("OK2"))
-
   private def expectedException(e: Throwable)(implicit loc: Location) = {
     assert(e.isInstanceOf[StatusRuntimeException])
     assertEquals(e.getMessage, "INTERNAL: SILENT")
   }
-  //todo check if the calls to the server are 'lazy' i.e. if the task is not consumed no call to the server should have been made.
+
+  override def munitTimeout: Duration = 2.second
 }

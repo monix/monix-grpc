@@ -8,13 +8,18 @@ message Request {
         ERROR_NOW = 1; // fail with an error
         ERROR_AFTER = 2; // for server streaming, error after two responses
         DELAY = 3; // do not return a response. for testing cancellations
+        SLOW = 4; //delays the response by 10 milliseconds
+        BACK_PRESSURE = 5; //delays the response by 10 milliseconds
     }
     Scenario scenario = 1;
-    int32 in = 2;
+    int32 backPressureResponses = 2;
+    repeated double bulk = 3;
 }
 
 message Response {
-    string out = 1;
+    int32 out = 1;
+    int64 timestamp = 2;
+    repeated double bulk = 3;
 }
 
 service TestService {

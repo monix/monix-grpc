@@ -1,20 +1,20 @@
 package monix.grpc.runtime.client
 
 import io.grpc
-
 import monix.eval.Task
 import monix.execution.atomic.Atomic
-import monix.execution.CancelablePromise
-import monix.reactive.Observable
-import monix.execution.AsyncQueue
-import monix.execution.Scheduler
+import monix.execution.{AsyncVar, CancelablePromise, Scheduler}
+import monix.reactive.subjects.ConcurrentSubject
+import monix.reactive.{MulticastStrategy, Observable, OverflowStrategy}
 
 object ClientCallListeners {
+
   final case class CallStatus(
       status: grpc.Status,
       trailers: grpc.Metadata
   ) {
     def isOk: Boolean = status.isOk()
+
     def toException: RuntimeException =
       status.asRuntimeException(trailers)
   }
@@ -23,14 +23,18 @@ object ClientCallListeners {
     new UnaryClientCallListener()
 
   def streaming[R](
-      askForMoreRequests: Int => Task[Unit]
-  )(implicit scheduler: Scheduler): StreamingClientCallListener[R] =
-    new StreamingClientCallListener(askForMoreRequests)
+      request: Int => Task[Unit]
+  )(implicit
+      scheduler: Scheduler
+  ): StreamingClientCallListener[R] =
+    new StreamingClientCallListener(request)
 
-  final class UnaryClientCallListener[Response] extends grpc.ClientCall.Listener[Response] {
+  private[client] final class UnaryClientCallListener[Response]
+      extends grpc.ClientCall.Listener[Response] {
     private val statusPromise = CancelablePromise[CallStatus]()
     private val headers0 = Atomic(None: Option[grpc.Metadata])
     private val response0 = Atomic(None: Option[Response])
+    val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
 
     def waitForResponse: Task[Response] = {
       Task.fromCancelablePromise(statusPromise).flatMap { callStatus =>
@@ -64,44 +68,36 @@ object ClientCallListeners {
         statusPromise.trySuccess(CallStatus(errStatus, trailers))
       }
     }
+
+    override def onReady(): Unit = onReadyEffect.tryPut(())
   }
 
-  final class StreamingClientCallListener[Response](
-      askForMoreRequests: Int => Task[Unit]
+  private[client] final class StreamingClientCallListener[Response](
+      request: Int => Task[Unit]
   )(implicit
       scheduler: Scheduler
   ) extends grpc.ClientCall.Listener[Response] {
-    private val callStatus0 = CancelablePromise[CallStatus]()
-    private val headers0 = Atomic(None: Option[grpc.Metadata])
-    private val responses0 = AsyncQueue.unbounded[Option[Response]](None)
 
-    def responses: Observable[Response] = {
-      val pullValue = Task.deferFuture(responses0.poll())
-      Observable
-        .repeatEvalF(pullValue)
-        .takeWhile(_.isDefined)
-        .flatMap(elems => Observable.fromIterable(elems))
-        .doOnComplete(
-          Task.fromCancelablePromise(callStatus0).flatMap { status =>
-            if (status.isOk) Task.unit
-            else Task.raiseError(status.toException)
-          }
-        )
-    }
+    private val headers0 = Atomic(None: Option[grpc.Metadata])
+    private val responses0 = ConcurrentSubject[Response](
+      MulticastStrategy.publish,
+      OverflowStrategy.Unbounded
+    )
+
+    val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
+    def incomingResponses: Observable[Response] = responses0
 
     override def onHeaders(headers: grpc.Metadata): Unit =
       headers0.compareAndSet(None, Some(headers))
 
-    override def onClose(status: grpc.Status, trailers: grpc.Metadata): Unit = {
-      callStatus0.trySuccess(CallStatus(status, trailers))
-      Task.deferFuture(responses0.offer(None)).runSyncUnsafe()
-    }
+    override def onClose(status: grpc.Status, trailers: grpc.Metadata): Unit =
+      if (status.isOk) responses0.onComplete()
+      else responses0.onError(CallStatus(status, trailers).toException)
 
-    override def onMessage(message: Response): Unit = {
-      Task
-        .deferFuture(responses0.offer(Some(message)))
-        .guarantee(askForMoreRequests(1))
-        .runSyncUnsafe()
-    }
+    override def onMessage(message: Response): Unit =
+      Task.deferFuture(responses0.onNext(message)).runSyncUnsafe()
+
+    override def onReady(): Unit =
+      onReadyEffect.tryPut(())
   }
 }

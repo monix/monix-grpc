@@ -1,18 +1,14 @@
 package monix.grpc.runtime.client
 
-import io.grpc
-
-import monix.eval.Task
 import cats.effect.ExitCase
-import monix.execution.Scheduler
+import io.grpc
+import monix.eval.{Task, TaskLocal}
+import monix.execution.{AsyncVar, Scheduler}
 import monix.reactive.Observable
-import monix.reactive.OverflowStrategy
-import monix.execution.Cancelable
-import monix.eval.TaskLocal
 
-class ClientCall[Request, Response] private (
-    call: grpc.ClientCall[Request, Response]
-) {
+class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[Request, Response])
+    extends AnyVal {
+
   def unaryToUnaryCall(
       message: Request,
       headers: grpc.Metadata
@@ -20,25 +16,42 @@ class ClientCall[Request, Response] private (
     val listener = ClientCallListeners.unary[Response]
     val makeCall = for {
       _ <- start(listener, headers)
-      _ <- request(1)
-      _ <- sendMessage(message).guarantee(halfClose)
+      _ <- requestMessagesFromUnaryCall
+      _ <- sendMessage(message).guaranteeCase {
+        case ExitCase.Completed => halfClose
+        case ExitCase.Error(e) => cancel("error", Some(e))
+        case ExitCase.Canceled => cancel("canceled", None)
+      }
       response <- listener.waitForResponse
     } yield response
-    TaskLocal.isolate(runResponseTaskHandler(makeCall))
+    TaskLocal
+      .isolate(runResponseTaskHandler(makeCall))
+      .executeWithOptions(_.enableLocalContextPropagation)
   }
 
   def unaryToStreamingCall(
       message: Request,
       headers: grpc.Metadata
-  )(implicit scheduler: Scheduler): Observable[Response] = Observable.defer {
+  )(implicit
+      scheduler: Scheduler
+  ): Observable[Response] = Observable.defer {
     val listener = ClientCallListeners.streaming[Response](request)
-    val makeCall = for {
+    val startCall = for {
       _ <- start(listener, headers)
       _ <- request(1)
-      _ <- sendMessage(message).guarantee(halfClose)
-    } yield listener.responses
+      _ <- sendMessage(message).guaranteeCase {
+        case ExitCase.Completed => halfClose
+        case ExitCase.Error(e) => cancel("error", Some(e))
+        case ExitCase.Canceled => cancel("canceled", None)
+      }
+    } yield ()
+
     runResponseObservableHandler(
-      Observable.fromTask(TaskLocal.isolate(makeCall)).flatten
+      isolateObservable(
+        listener.incomingResponses
+          .doAfterSubscribe(startCall)
+          .doOnNext(_ => request(1))
+      )
     )
   }
 
@@ -49,46 +62,67 @@ class ClientCall[Request, Response] private (
     val listener = ClientCallListeners.unary[Response]
     val makeCall = for {
       _ <- start(listener, headers)
-      _ <- request(1)
-      runningRequest <- {
-        val clientStream = messages.mapEval(sendMessage).completedL.guarantee(halfClose)
-        Task.racePair(
-          listener.waitForResponse,
-          clientStream
-        )
-      }
+      _ <- requestMessagesFromUnaryCall
+      runningRequest <- Task.racePair(
+        listener.waitForResponse,
+        sendStreamingRequests(messages, listener.onReadyEffect)
+      )
       response <- runningRequest match {
         case Left((response, clientStream)) =>
-          clientStream.cancel.redeem(_ => response, _ => response)
-        case Right((eventualResponse, _)) => eventualResponse.join
+          clientStream.cancel.onErrorHandle(_ => ()).map(_ => response)
+        case Right((responseFiber, _)) => responseFiber.join
       }
     } yield response
 
-    TaskLocal.isolate(runResponseTaskHandler(makeCall))
+    TaskLocal
+      .isolate(runResponseTaskHandler(makeCall))
+      .executeWithOptions(_.enableLocalContextPropagation)
+  }
+
+  private def sendStreamingRequests(
+      requests: Observable[Request],
+      onReady: AsyncVar[Unit]
+  ): Task[Unit] = {
+    def sendMessageWhenReady(request: Request): Task[Unit] =
+      // Don't send message until the `onReady` async var is full and the call is ready
+      Task.deferFuture(onReady.take()).restartUntil(_ => call.isReady).>>(sendMessage(request))
+
+    requests
+      .mapEval { request =>
+        if (call.isReady) sendMessage(request)
+        else sendMessageWhenReady(request)
+      }
+      .completedL
+      .guaranteeCase {
+        case ExitCase.Completed => halfClose
+        case ExitCase.Error(e) => cancel("failed", Some(e))
+        case ExitCase.Canceled => cancel("call canceled", None)
+      }
   }
 
   def streamingToStreamingCall(
-      messages: Observable[Request],
+      requests: Observable[Request],
       headers: grpc.Metadata
-  )(implicit scheduler: Scheduler): Observable[Response] = Observable.defer {
+  )(implicit
+      scheduler: Scheduler
+  ): Observable[Response] = Observable.defer {
     val listener = ClientCallListeners.streaming[Response](request)
-    val makeCall = for {
-      _ <- start(listener, headers)
-      streamRequests = for {
-        _ <- request(1)
-        _ <- messages.mapEval(sendMessage).completedL.guarantee(halfClose)
-      } yield ()
 
-      streamRequestsObs = Observable.fromTask(streamRequests).flatMap { _ =>
-        // Trick to create an `Observable[Nothing]` so that merge below works
-        Observable.create[Nothing](OverflowStrategy.Unbounded) { sub =>
-          sub.onComplete()
-          Cancelable.empty
-        }
+    val makeCall = start(listener, headers).>> {
+      sendStreamingRequests(requests, listener.onReadyEffect).start.map { sendRequestsFiber =>
+        listener.incomingResponses
+          .doAfterSubscribe(request(1))
+          .doOnNext(_ => request(1))
+          .guaranteeCase {
+            case ExitCase.Completed => sendRequestsFiber.join
+            case ExitCase.Canceled => sendRequestsFiber.cancel
+            case ExitCase.Error(err) => sendRequestsFiber.cancel
+          }
       }
-    } yield Observable(listener.responses, streamRequestsObs).merge
+    }
+
     runResponseObservableHandler(
-      Observable.fromTask(TaskLocal.isolate(makeCall)).flatten
+      isolateObservable(Observable.fromTask(makeCall).flatten)
     )
   }
 
@@ -112,10 +146,28 @@ class ClientCall[Request, Response] private (
     }
   }
 
+  private def isolateObservable[T](thunk: => Observable[T]): Observable[T] = {
+    val subscribingTask = TaskLocal
+      .isolate(Task(thunk))
+      .executeWithOptions(_.enableLocalContextPropagation)
+    Observable.fromTask(subscribingTask).flatten
+  }
+
   private def start(
       listener: grpc.ClientCall.Listener[Response],
       headers: grpc.Metadata
   ): Task[Unit] = Task(call.start(listener, headers))
+
+  /**
+   * Asks for two messages even though we expect only one so that if a
+   * misbehaving client sends more than one response in a unary call we catch
+   * the contract violation and fail right away.
+   *
+   * @note This is a trick employed by the official grpc-java, check the
+   *  source if you want to learn more.
+   */
+  private def requestMessagesFromUnaryCall: Task[Unit] =
+    request(2)
 
   private def request(numMessages: Int): Task[Unit] =
     Task(call.request(numMessages))
@@ -135,6 +187,9 @@ object ClientCall {
       channel: grpc.Channel,
       methodDescriptor: grpc.MethodDescriptor[Request, Response],
       callOptions: grpc.CallOptions
-  ): ClientCall[Request, Response] =
-    new ClientCall(channel.newCall[Request, Response](methodDescriptor, callOptions))
+  ): ClientCall[Request, Response] = {
+    new ClientCall(
+      channel.newCall[Request, Response](methodDescriptor, callOptions)
+    )
+  }
 }

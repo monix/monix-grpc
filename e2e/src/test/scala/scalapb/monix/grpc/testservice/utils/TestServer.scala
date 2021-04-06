@@ -1,23 +1,25 @@
 package scalapb.monix.grpc.testservice.utils
 
-import com.typesafe.scalalogging.LazyLogging
-import io.grpc.netty.NettyChannelBuilder
+import com.typesafe.scalalogging.{LazyLogging, Logger}
 import io.grpc._
+import io.grpc.inprocess.{InProcessChannelBuilder, InProcessServerBuilder}
+import io.grpc.netty.{NettyChannelBuilder, NettyServerBuilder}
 import monix.eval.Task
 import monix.execution.Scheduler.global
 import monix.reactive.Observable
 import scalapb.monix.grpc.testservice.Request.Scenario
-import scalapb.monix.grpc.testservice.TestServiceGrpc.TestService
 import scalapb.monix.grpc.testservice.{Request, Response, TestServiceApi}
 
-import scala.concurrent.duration.SECONDS
+import java.time.Instant
+import scala.concurrent.duration.{DurationInt, SECONDS}
+import scala.util.Random
 
-class TestService() extends TestServiceApi[Metadata] with LazyLogging {
+class TestService(logger: Logger) extends TestServiceApi[Metadata] {
 
   override def unary(request: Request, ctx: Metadata): Task[Response] = {
     logger.info(s"unary: received $request")
     request.scenario match {
-      case Scenario.OK => Task(Response("OK"))
+      case Scenario.OK => Task(Response(1))
       case Scenario.ERROR_NOW => Task.raiseError(SilentException())
       case Scenario.DELAY => Task.never
       case _ => Task.raiseError(new RuntimeException("TEST-FAIL"))
@@ -25,63 +27,108 @@ class TestService() extends TestServiceApi[Metadata] with LazyLogging {
   }
 
   override def serverStreaming(request: Request, ctx: Metadata): Observable[Response] = {
-    logger.info(s"serverStreaming: received $request")
-    request.scenario match {
-      case Scenario.OK => Observable(Response("OK1"), Response("OK2"))
+    logger.info(s"serverStreaming: received ${request.scenario}")
+    val responseStream = request.scenario match {
+      case Scenario.OK => Observable(Response(1), Response(2))
       case Scenario.ERROR_NOW => Observable.raiseError(SilentException())
       case Scenario.ERROR_AFTER =>
-        Observable(Response("OK1"), Response("OK2")) ++ Observable.raiseError(SilentException())
+        Observable(Response(1), Response(2)) ++ Observable.raiseError(SilentException())
+      case Scenario.BACK_PRESSURE =>
+        Observable
+          .unfold(bigResponse)(s =>
+            Some(s -> s.copy(out = s.out + 1, timestamp = Instant.now().toEpochMilli))
+          )
+          .take(request.backPressureResponses)
       case Scenario.DELAY => Observable.never
-      case _ => Observable(Response("OK"))
+      case _ => Observable(Response(1))
     }
+
+    responseStream.doOnNext(r => Task.apply(logger.info(s"response: ${r.out} ${r.timestamp}")))
   }
 
-  override def clientStreaming(request: Observable[Request], ctx: Metadata): Task[Response] =
+  def bigResponse = Response(0, Instant.now().toEpochMilli, Array.fill(10)(Random.nextDouble()))
+
+  override def clientStreaming(request: Observable[Request], ctx: Metadata): Task[Response] = {
     request
-      .doOnNext(r => Task.apply(logger.info(s"clientStreaming: received $r")))
-      .scanEval(Task(0)) { (successCount, req) =>
+      .doOnNext(r => Task.apply(logger.info(s"clientStreaming: received ${r.scenario}")))
+      .scanEval(Task[Response](bigResponse)) { (previousResponse, req) =>
         req.scenario match {
-          case Scenario.OK => Task(successCount + 1)
+          case Scenario.OK =>
+            Task(Response(previousResponse.out + 1, Instant.now().toEpochMilli, Seq()))
           case Scenario.ERROR_NOW => Task.raiseError(SilentException())
           case Scenario.DELAY => Task.never
+          case Scenario.SLOW =>
+            Task(Response(previousResponse.out + 1, Instant.now().toEpochMilli, Seq()))
+              .delayResult(50.milli)
           case _ => Task.raiseError(new RuntimeException("TEST-FAIL"))
         }
       }
-      .lastOrElseL(0)
-      .map(count => Response(s"OK$count"))
+      .lastOrElseL(bigResponse)
+  }
 
   override def bidiStreaming(request: Observable[Request], ctx: Metadata): Observable[Response] = {
     request
-      .doOnNext(r => Task.apply(logger.info(s"bidiStreaming: received $r")))
-      .scanEval(Task(0)) { (successCount, req) =>
+      .doOnNext(r => Task.apply(logger.info(s"bidiStreaming: received ${r.scenario}")))
+      .scanEval(Task(Observable(bigResponse))) { (previousResponse, req) =>
         req.scenario match {
-          case Scenario.OK => Task(successCount + 1)
+          case Scenario.OK =>
+            Task(
+              previousResponse.map(r => Response(r.out + 1, 0, r.bulk))
+            )
           case Scenario.ERROR_NOW => Task.raiseError(SilentException())
           case Scenario.DELAY => Task.never
+          case Scenario.SLOW =>
+            Task(
+              previousResponse.map(r => Response(r.out + 1, 0, Seq()))
+            ).delayResult(50.milli)
+          case Scenario.BACK_PRESSURE =>
+            Task(
+              previousResponse.last.flatMap(r =>
+                Observable
+                  .unfold(r.out + 1)(idx => Some(r.copy(out = idx) -> (idx + 1)))
+                  .take(req.backPressureResponses)
+              )
+            )
           case _ => Task.raiseError(new RuntimeException("TEST-FAIL"))
         }
       }
-      .map(count => Response(s"OK$count"))
+      .flatten
+      .map(_.copy(timestamp = Instant.now().toEpochMilli))
+      .doOnNext(r => Task.apply(logger.info(s"response: ${r.out} ${r.timestamp}")))
   }
 
 }
 
 object TestServer {
 
-  def createServer(port: Int): Server = {
-    val server = new TestService()
-    ServerBuilder
-      .forPort(port)
-      .addService(TestServiceApi.bindService(server)(global))
-      .build()
+  def createServer(port: Int, logger: Logger, inprocess: Boolean): Server = {
+    val service = TestServiceApi.bindService(new TestService(logger))(global)
+
+    if (inprocess) {
+      InProcessServerBuilder
+        .forName("name")
+        .addService(service)
+        .build()
+    } else {
+      NettyServerBuilder
+        .forPort(port)
+        .addService(service)
+        .build()
+    }
+
   }
 
-  def client(port: Int): (ManagedChannel, TestServiceApi[Metadata]) = {
-    val channel = NettyChannelBuilder
-      .forAddress("localhost", port)
-      .usePlaintext()
-      .keepAliveTimeout(2, SECONDS)
-      .build()
+  def client(port: Int, inprocess: Boolean): (ManagedChannel, TestServiceApi[Metadata]) = {
+    val channel = if (inprocess) {
+      InProcessChannelBuilder
+        .forName("name")
+        .build()
+    } else {
+      NettyChannelBuilder
+        .forAddress("localhost", port)
+        .usePlaintext()
+        .build()
+    }
     (channel, TestServiceApi.stub(channel, CallOptions.DEFAULT)(global))
   }
 }

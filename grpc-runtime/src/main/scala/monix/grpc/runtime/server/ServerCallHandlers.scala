@@ -3,9 +3,10 @@ package monix.grpc.runtime.server
 import cats.effect.ExitCase
 import io.grpc
 import monix.eval.{Task, TaskLocal}
-import monix.execution.{AsyncQueue, CancelablePromise, Scheduler}
 import monix.execution.atomic.AtomicAny
-import monix.reactive.Observable
+import monix.execution.{AsyncVar, BufferCapacity, CancelablePromise, Scheduler}
+import monix.reactive.subjects.ConcurrentSubject
+import monix.reactive.{MulticastStrategy, Observable, OverflowStrategy}
 
 /**
  * Defines the grpc service API handlers that are used in the stub code
@@ -63,26 +64,34 @@ object ServerCallHandlers {
     ): grpc.ServerCall.Listener[T] = {
       val call = ServerCall(grpcCall, options)
       val listener = new UnaryCallListener(call, scheduler)
+
       listener.runUnaryResponseListener(metadata) { msg =>
-        Observable.defer(f(msg, metadata)).mapEval(call.sendMessage).completedL
+        call.sendStreamingResponses(
+          Observable.defer(f(msg, metadata)),
+          listener.onReadyEffect
+        )
       }
       listener
     }
   }
 
-  private final class UnaryCallListener[T, R](
+  private[server] final class UnaryCallListener[T, R](
       call: ServerCall[T, R],
       scheduler: Scheduler
   ) extends grpc.ServerCall.Listener[T] {
+    val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
+
     private val requestMsg = AtomicAny[Option[T]](None)
     private val completed = CancelablePromise[grpc.Status]()
     private val isCancelled = CancelablePromise[Unit]()
 
-    def runUnaryResponseListener(metadata: grpc.Metadata)(
+    def runUnaryResponseListener(
+        metadata: grpc.Metadata
+    )(
         sendResponse: T => Task[Unit]
     ): Unit = {
       val handleResponse = for {
-        _ <- call.request(1) // Number tells expected request messages
+        _ <- call.requestMessagesFromUnaryCall
         _ <- Task.fromCancelablePromise(completed)
         _ <- call.sendHeaders(metadata)
         _ <- requestMsg.get() match {
@@ -96,13 +105,16 @@ object ServerCallHandlers {
 
       TaskLocal
         .isolate(runResponseHandler(call, handleResponse, isCancelled))
-        .runAsyncAndForgetOpt(scheduler, Task.defaultOptions.enableLocalContextPropagation)
+        .executeWithOptions(_.enableLocalContextPropagation)
+        .runAsyncAndForget(scheduler)
     }
 
     override def onHalfClose(): Unit =
       completed.trySuccess(grpc.Status.OK)
+
     override def onCancel(): Unit =
       isCancelled.trySuccess(())
+
     override def onMessage(msg: T): Unit = {
       if (requestMsg.compareAndSet(None, Some(msg))) ()
       else {
@@ -111,6 +123,9 @@ object ServerCallHandlers {
         completed.tryFailure(errStatus.asRuntimeException())
       }
     }
+
+    override def onReady(): Unit = onReadyEffect.tryPut(())
+
   }
 
   /**
@@ -133,7 +148,7 @@ object ServerCallHandlers {
         metadata: grpc.Metadata
     ): grpc.ServerCall.Listener[T] = {
       val call = ServerCall(grpcCall, options)
-      val listener = new StreamingCallListener(call)(scheduler)
+      val listener = new StreamingCallListener(call, options.bufferCapacity)(scheduler)
       listener.runStreamingResponseListener(metadata) { msgs =>
         Task.defer(f(msgs, metadata)).flatMap(call.sendMessage)
       }
@@ -160,57 +175,68 @@ object ServerCallHandlers {
         grpcCall: grpc.ServerCall[T, R],
         metadata: grpc.Metadata
     ): grpc.ServerCall.Listener[T] = {
+
       val call = ServerCall(grpcCall, options)
-      val listener = new StreamingCallListener(call)(scheduler)
+      val listener = new StreamingCallListener(call, options.bufferCapacity)(scheduler)
       listener.runStreamingResponseListener(metadata) { msgs =>
-        Observable.defer(f(msgs, metadata)).mapEval(call.sendMessage).completedL
+        call.sendStreamingResponses(
+          Observable.defer(f(msgs, metadata)),
+          listener.onReadyEffect
+        )
       }
       listener
     }
   }
 
-  private final class StreamingCallListener[T, R](
-      call: ServerCall[T, R]
-  )(implicit scheduler: Scheduler)
-      extends grpc.ServerCall.Listener[T] {
+  private[server] final class StreamingCallListener[Request, Response](
+      call: ServerCall[Request, Response],
+      capacity: BufferCapacity
+  )(implicit
+      scheduler: Scheduler
+  ) extends grpc.ServerCall.Listener[Request] {
     private val isCancelled = CancelablePromise[Unit]()
-    private val queue = AsyncQueue.unbounded[Option[T]](None)(scheduler)
+    private val subject = ConcurrentSubject[Request](
+      MulticastStrategy.publish,
+      OverflowStrategy.Unbounded
+    )
 
-    def runStreamingResponseListener(metadata: grpc.Metadata)(
-        sendResponses: Observable[T] => Task[Unit]
+    val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
+
+    def runStreamingResponseListener(
+        metadata: grpc.Metadata
+    )(
+        sendResponses: Observable[Request] => Task[Unit]
     ): Unit = {
       val handleResponse = for {
-        _ <- call.request(1) // Number tells expected request messages
         _ <- call.sendHeaders(metadata)
         _ <- sendResponses {
-          val pullValue = Task.deferFuture(queue.poll())
-          Observable
-            .repeatEvalF(pullValue)
-            .takeWhile(_.isDefined)
-            .flatMap(elem => Observable.fromIterable(elem))
+          subject
+            .doAfterSubscribe(call.request(1))
+            .doOnNext(_ => call.request(1))
         }
       } yield ()
 
       TaskLocal
         .isolate(runResponseHandler(call, handleResponse, isCancelled))
-        .runAsyncAndForgetOpt(scheduler, Task.defaultOptions.enableLocalContextPropagation)
+        .executeWithOptions(_.enableLocalContextPropagation)
+        .runAsyncAndForget(scheduler)
+
     }
 
     override def onCancel(): Unit =
       isCancelled.trySuccess(())
 
     override def onHalfClose(): Unit =
-      Task.deferFuture(queue.offer(None)).runSyncUnsafe()
+      subject.onComplete()
 
-    override def onMessage(msg: T): Unit = {
-      val processMessage = for {
-        _ <- call.request(1)
-        _ <- Task.deferFuture(queue.offer(Some(msg)))
-      } yield ()
-      processMessage.runSyncUnsafe()
-    }
+    override def onMessage(msg: Request): Unit =
+      Task.deferFuture(subject.onNext(msg)).runSyncUnsafe()
 
-    override def onComplete(): Unit = queue.clear()
+    override def onComplete(): Unit =
+      subject.onComplete()
+
+    override def onReady(): Unit =
+      onReadyEffect.tryPut(())
   }
 
   private def runResponseHandler[T, R](

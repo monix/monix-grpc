@@ -2,20 +2,51 @@ package monix.grpc.runtime.server
 
 import io.grpc
 import monix.eval.Task
+import monix.execution.{AsyncVar, BufferCapacity}
+import monix.reactive.Observable
 
 // TODO: Add attributes, compression, message compression.
-// TODO: add a way to return typed error with status codes + message
 class ServerCall[Request, Response] private (
     val call: grpc.ServerCall[Request, Response]
 ) extends AnyVal {
+
+  def isReady: Boolean = call.isReady
+
   def request(numMessages: Int): Task[Unit] =
-    handleError(Task(call.request(numMessages)), s"Failed to request message $numMessages!")
+    handleError(
+      Task(call.request(numMessages)),
+      s"Failed to request message $numMessages!"
+    )
+
+  /**
+   * Asks for two messages even though we expect only one so that if a
+   * misbehaving client sends more than one response in a unary call we catch
+   * the contract violation and fail right away.
+   *
+   * @note This is a trick employed by the official grpc-java, check the
+   *  source if you want to learn more.
+   */
+  def requestMessagesFromUnaryCall: Task[Unit] = request(2)
 
   def sendHeaders(headers: grpc.Metadata): Task[Unit] =
     handleError(Task(call.sendHeaders(headers)), s"Failed to send headers!", headers)
 
   def sendMessage(message: Response): Task[Unit] =
     handleError(Task(call.sendMessage(message)), s"Failed to send message $message!")
+
+  def sendStreamingResponses(
+      responses: Observable[Response],
+      onReady: AsyncVar[Unit]
+  ): Task[Unit] = {
+    def sendMessageWhenReady(response: Response): Task[Unit] =
+      // Don't send message until the `onReady` async var is full and the call is ready
+      Task.deferFuture(onReady.take()).restartUntil(_ => isReady).>>(sendMessage(response))
+
+    responses.mapEval { response =>
+      if (isReady) sendMessage(response)
+      else sendMessageWhenReady(response)
+    }.completedL
+  }
 
   def closeStream(status: grpc.Status, trailers: grpc.Metadata): Task[Unit] =
     Task.delay(call.close(status, trailers))
@@ -45,22 +76,29 @@ object ServerCall {
 }
 
 abstract class ServerCallOptions private (
-    val compressor: Option[ServerCompressor]
+    val compressor: Option[ServerCompressor],
+    val bufferCapacity: BufferCapacity
 ) {
-  def copy(
-      compressor: Option[ServerCompressor] = this.compressor
-  ): ServerCallOptions = new ServerCallOptions(compressor) {}
+  //needs to be private for binary compatibility
+  private def copy(
+      compressor: Option[ServerCompressor] = this.compressor,
+      bufferCapacity: BufferCapacity
+  ): ServerCallOptions = new ServerCallOptions(compressor, bufferCapacity) {}
 
   def withServerCompressor(
       compressor: Option[ServerCompressor]
-  ): ServerCallOptions = copy(compressor)
+  ): ServerCallOptions = copy(compressor, bufferCapacity)
+
+  def withServerCompressor(
+      bufferCapacity: BufferCapacity
+  ): ServerCallOptions = copy(compressor, bufferCapacity)
 }
 
 object ServerCallOptions {
   val default: ServerCallOptions =
-    new ServerCallOptions(Some(GzipCompressor)) {}
+    new ServerCallOptions(Some(GzipCompressor), BufferCapacity.Bounded(32)) {}
 }
 
-sealed abstract class ServerCompressor(val name: String) extends Product with Serializable
+abstract sealed class ServerCompressor(val name: String) extends Product with Serializable
 
 case object GzipCompressor extends ServerCompressor("gzip")
