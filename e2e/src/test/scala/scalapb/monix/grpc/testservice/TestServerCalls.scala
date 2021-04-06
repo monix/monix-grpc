@@ -177,7 +177,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLog
     response
   }
 
-  test("bidiStreaming call success") {
+  test("bidiStreaming call succeeds") {
     val client = stub()
     val subject = ReplaySubject[Request]()
     val response = client

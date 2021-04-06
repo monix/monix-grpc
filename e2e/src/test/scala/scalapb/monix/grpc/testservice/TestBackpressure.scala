@@ -28,7 +28,7 @@ class TestBackpressure extends munit.FunSuite with GrpcServerFixture with LazyLo
 
   val expectedAverageResponseTime = 45
 
-  test("bidi stream calls should backpressure on client side".tag(Slow)) {
+  test("bidi stream call backpressures on client side".tag(Slow)) {
     val client = stub()
     val subject = ConcurrentSubject[Instant](MulticastStrategy.replay)
 
@@ -51,7 +51,7 @@ class TestBackpressure extends munit.FunSuite with GrpcServerFixture with LazyLo
       .runToFuture
   }
 
-  test("bidi stream calls should backpressure on server side".tag(Slow)) {
+  test("bidi stream call backpressures on server side".tag(Slow)) {
     val client = stub()
 
     client
@@ -71,7 +71,7 @@ class TestBackpressure extends munit.FunSuite with GrpcServerFixture with LazyLo
       .runToFuture
   }
 
-  test("client stream calls should backpressure on client side".tag(Slow)) {
+  test("client stream call backpressures on client side".tag(Slow)) {
     val client = stub()
     val subject = ConcurrentSubject[Instant](MulticastStrategy.replay)
 
@@ -94,7 +94,7 @@ class TestBackpressure extends munit.FunSuite with GrpcServerFixture with LazyLo
       .runToFuture
   }
 
-  test("server stream calls should backpressure on server side".tag(Slow)) {
+  test("server stream call backpressures on server side".tag(Slow)) {
     val client = stub()
     client
       .serverStreaming(Request(Scenario.BACK_PRESSURE, requestCount), new Metadata())
