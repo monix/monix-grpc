@@ -11,10 +11,10 @@ import munit.FunSuite
 
 import scala.concurrent.duration.{Duration, DurationInt}
 
-class ServerCallHandlersTest extends FunSuite {
+class ServerCallTest extends FunSuite {
   override def munitTimeout: Duration = 1.second
 
-  test("StreamingCallListener initially requests 1 response afterSubscribe") {
+  test("requests 1 response after subscribing") {
     val mock = ServerCallMock[Int, Int]()
     val listener =
       new StreamingCallListener[Int, Int](
@@ -29,7 +29,7 @@ class ServerCallHandlersTest extends FunSuite {
       .runToFuture
   }
 
-  test("StreamingCallListener requests 1 more element when a new element is being processed") {
+  test("requests new elements as they are being processed") {
     val mock = ServerCallMock[Int, Int]
     val testSubscriber = TestSubscriber[Int](false)
     val listener =
@@ -70,7 +70,7 @@ class ServerCallHandlersTest extends FunSuite {
     } yield ()
   }
 
-  test("StreamingCallListener onReadyEffect is triggered onReady") {
+  test("onReadyEffect is triggered onReady") {
     val mock = ServerCallMock[Int, Int]
     val listener =
       new StreamingCallListener[Int, Int](
@@ -84,7 +84,7 @@ class ServerCallHandlersTest extends FunSuite {
     assertEquals(listener.onReadyEffect.tryTake(), Some(()))
   }
 
-  test("StreamingCallListener onCancel cancels the rpc call") {
+  test("rpc call is cancelled successfully") {
     val mock = ServerCallMock[Int, Int]
     val listener =
       new StreamingCallListener[Int, Int](
@@ -94,10 +94,8 @@ class ServerCallHandlersTest extends FunSuite {
     listener.runStreamingResponseListener(new Metadata())(_ => Task.never)
 
     Task(listener.onCancel()).delayExecution(2.milli).runAsyncAndForget
-    mock.onClose
-      .map { case (status, _) =>
-        assertEquals(status, Status.CANCELLED)
-      }
+    mock.onClose.map { case (status, _) =>
+      assertEquals(status, Status.CANCELLED)
+    }
   }
-
 }
