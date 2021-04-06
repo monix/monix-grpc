@@ -83,12 +83,15 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
       requests: Observable[Request],
       onReady: AsyncVar[Unit]
   ): Task[Unit] = {
-    def sendRequest(request: Request): Task[Unit] =
-      if (call.isReady) sendMessage(request)
-      else Task.fromFuture(onReady.take()).>>(sendMessage(request))
+    def sendMessageWhenReady(request: Request): Task[Unit] =
+      // Don't send message until the `onReady` async var is full and the call is ready
+      Task.deferFuture(onReady.take()).restartUntil(_ => call.isReady).>>(sendMessage(request))
 
     requests
-      .mapEval(sendRequest)
+      .mapEval { request =>
+        if (call.isReady) sendMessage(request)
+        else sendMessageWhenReady(request)
+      }
       .completedL
       .guaranteeCase {
         case ExitCase.Completed => halfClose

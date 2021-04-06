@@ -38,11 +38,14 @@ class ServerCall[Request, Response] private (
       responses: Observable[Response],
       onReady: AsyncVar[Unit]
   ): Task[Unit] = {
-    def sendResponse(response: Response): Task[Unit] =
-      if (isReady) sendMessage(response)
-      else Task.fromFuture(onReady.take()).>>(sendMessage(response))
+    def sendMessageWhenReady(response: Response): Task[Unit] =
+      // Don't send message until the `onReady` async var is full and the call is ready
+      Task.deferFuture(onReady.take()).restartUntil(_ => isReady).>>(sendMessage(response))
 
-    responses.mapEval(sendResponse).completedL
+    responses.mapEval { response =>
+      if (isReady) sendMessage(response)
+      else sendMessageWhenReady(response)
+    }.completedL
   }
 
   def closeStream(status: grpc.Status, trailers: grpc.Metadata): Task[Unit] =
