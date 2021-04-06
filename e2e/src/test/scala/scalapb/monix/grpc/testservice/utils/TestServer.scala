@@ -14,8 +14,7 @@ import java.time.Instant
 import scala.concurrent.duration.{DurationInt, SECONDS}
 import scala.util.Random
 
-class TestService(logger: Logger) extends TestServiceApi[Metadata] {
-
+class TestService(logger: Logger) extends TestServiceApi {
   override def unary(request: Request, ctx: Metadata): Task[Response] = {
     logger.info(s"unary: received $request")
     request.scenario match {
@@ -118,7 +117,7 @@ object TestServer {
 
   }
 
-  def client(port: Int, inprocess: Boolean): (ManagedChannel, TestServiceApi[Metadata]) = {
+  def client(port: Int, inprocess: Boolean): (ManagedChannel, TestServiceApi) = {
     val channel = if (inprocess) {
       InProcessChannelBuilder
         .forName("name")

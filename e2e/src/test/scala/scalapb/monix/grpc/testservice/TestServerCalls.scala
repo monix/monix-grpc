@@ -20,7 +20,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLog
   test("unary call responds successfully") {
     val client = stub()
     client
-      .unary(Request(Request.Scenario.OK), new Metadata())
+      .unary(Request(Request.Scenario.OK))
       .map { r =>
         assertEquals(r.out, 1)
       }
@@ -30,7 +30,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLog
   test("unary call responds with a failure") {
     val client = stub()
     client
-      .unary(Request(Request.Scenario.ERROR_NOW), new Metadata())
+      .unary(Request(Request.Scenario.ERROR_NOW))
       .redeem(
         expectedException,
         r => fail(s"The server should not return a response $r")
@@ -41,7 +41,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLog
   test("unary call times out") {
     val client = stub()
     client
-      .unary(Request(Request.Scenario.DELAY), new Metadata())
+      .unary(Request(Request.Scenario.DELAY))
       .timeout(1.seconds)
       .redeem(
         e => assert(e.isInstanceOf[TimeoutException]),
@@ -53,7 +53,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLog
   test("serverStreaming call responds successfully") {
     val client = stub()
     client
-      .serverStreaming(Request(Request.Scenario.OK), new Metadata())
+      .serverStreaming(Request(Request.Scenario.OK))
       .toListL
       .map { r =>
         assert(r.map(_.out) == Seq(1, 2))
@@ -64,7 +64,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLog
   test("serverStreaming call responds with a failure") {
     val client = stub()
     client
-      .serverStreaming(Request(Request.Scenario.ERROR_NOW), new Metadata())
+      .serverStreaming(Request(Request.Scenario.ERROR_NOW))
       .toListL
       .redeem(
         expectedException,
@@ -76,7 +76,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLog
   test("serverStreaming call responds during the response stream with a failure") {
     val client = stub()
     client
-      .serverStreaming(Request(Request.Scenario.ERROR_AFTER), new Metadata())
+      .serverStreaming(Request(Request.Scenario.ERROR_AFTER))
       .map(r => Right(r))
       .onErrorHandle(Left(_))
       .toListL
@@ -89,7 +89,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLog
   test("serverStreaming call times out") {
     val client = stub()
     client
-      .serverStreaming(Request(Request.Scenario.DELAY), new Metadata())
+      .serverStreaming(Request(Request.Scenario.DELAY))
       .toListL
       .timeout(1.second)
       .redeem(
@@ -104,7 +104,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLog
     val subject = ReplaySubject[Request]()
 
     def response = client
-      .clientStreaming(subject, new Metadata())
+      .clientStreaming(subject)
       .map(r => assertEquals(r.out, 3))
       .runToFutureOpt
 
@@ -122,7 +122,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLog
     val subject = ReplaySubject[Request]()
 
     def response = client
-      .clientStreaming(subject, new Metadata())
+      .clientStreaming(subject)
       .redeem(
         expectedException,
         r => fail(s"The server should not return a response $r")
@@ -144,7 +144,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLog
     val subject = ReplaySubject[Request]()
 
     def response = client
-      .clientStreaming(subject, new Metadata())
+      .clientStreaming(subject)
       .redeem(
         _ => (),
         _ => fail("The client send an error and no exception is on the server result")
@@ -160,7 +160,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLog
     val subject = ReplaySubject[Request]()
 
     def response = client
-      .clientStreaming(subject, new Metadata())
+      .clientStreaming(subject)
       .timeout(1.second)
       .redeem(
         e => assert(e.isInstanceOf[TimeoutException]),
@@ -181,7 +181,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLog
     val client = stub()
     val subject = ReplaySubject[Request]()
     val response = client
-      .bidiStreaming(subject, new Metadata())
+      .bidiStreaming(subject)
       .toListL
       .map(r => assertEquals(r.map(_.out), List(1)))
       .runToFutureOpt
@@ -197,7 +197,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLog
     val subject = ReplaySubject[Request]()
 
     def response = client
-      .bidiStreaming(subject, new Metadata())
+      .bidiStreaming(subject)
       .toListL
       .redeem(
         _ => (),
@@ -213,7 +213,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLog
     val client = stub()
     val subject = ReplaySubject[Request]()
     val response = client
-      .bidiStreaming(subject, new Metadata())
+      .bidiStreaming(subject)
       .toListL
       .redeem(
         expectedException,
@@ -231,7 +231,7 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLog
     val client = stub()
     val subject = ReplaySubject[Request]()
     val response = client
-      .bidiStreaming(subject, new Metadata())
+      .bidiStreaming(subject)
       .toListL
       .timeout(1.second)
       .redeem(
