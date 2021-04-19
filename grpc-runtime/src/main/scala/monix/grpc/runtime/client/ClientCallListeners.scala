@@ -32,44 +32,41 @@ object ClientCallListeners {
   private[client] final class UnaryClientCallListener[Response]
       extends grpc.ClientCall.Listener[Response] {
     private val statusPromise = CancelablePromise[CallStatus]()
-    private val headers0 = Atomic(None: Option[grpc.Metadata])
-    private val response0 = Atomic(None: Option[Response])
+    private var headers0: Option[grpc.Metadata] = None
+    private var response0: Option[Response] = None
+
     val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
 
     def waitForResponse: Task[Response] = {
       Task.fromCancelablePromise(statusPromise).flatMap { callStatus =>
         if (!callStatus.isOk) Task.raiseError(callStatus.toException)
-        else findResponse(callStatus.trailers)
-      }
-    }
-
-    private def findResponse(trailers: grpc.Metadata): Task[Response] = {
-      response0.get() match {
-        case Some(response) => Task.now(response)
-        case None =>
-          val errMsg = "No response received from unary client call!"
-          val errStatus = grpc.Status.INTERNAL.withDescription(errMsg)
-          Task.raiseError(errStatus.asRuntimeException(trailers))
+        else {
+          response0 match {
+            case Some(response) if response != null => Task.now(response)
+            case (None | Some(null)) =>
+              val errMsg = "No value received for unary client call!"
+              val errStatus = grpc.Status.INTERNAL.withDescription(errMsg)
+              Task.raiseError(errStatus.asRuntimeException(callStatus.trailers))
+          }
+        }
       }
     }
 
     override def onHeaders(headers: grpc.Metadata): Unit =
-      headers0.compareAndSet(None, Some(headers))
-
-    override def onClose(status: grpc.Status, trailers: grpc.Metadata): Unit =
-      statusPromise.trySuccess(CallStatus(status, trailers))
-
-    override def onMessage(message: Response): Unit = {
-      if (response0.compareAndSet(None, Some(message))) ()
-      else {
+      headers0 = Some(headers)
+    override def onMessage(message: Response): Unit = response0 match {
+      case None => response0 = Some(message)
+      case Some(_) =>
         val errMsg = "Too many response messages, expected only one!"
         val errStatus = grpc.Status.INTERNAL.withDescription(errMsg)
-        val trailers = headers0.get().getOrElse(new grpc.Metadata)
+        val trailers = headers0.getOrElse(new grpc.Metadata)
         statusPromise.trySuccess(CallStatus(errStatus, trailers))
-      }
     }
 
-    override def onReady(): Unit = onReadyEffect.tryPut(())
+    override def onReady(): Unit =
+      onReadyEffect.tryPut(())
+    override def onClose(status: grpc.Status, trailers: grpc.Metadata): Unit =
+      statusPromise.trySuccess(CallStatus(status, trailers))
   }
 
   private[client] final class StreamingClientCallListener[Response](
@@ -78,7 +75,7 @@ object ClientCallListeners {
       scheduler: Scheduler
   ) extends grpc.ClientCall.Listener[Response] {
 
-    private val headers0 = Atomic(None: Option[grpc.Metadata])
+    private var headers0: Option[grpc.Metadata] = None
     private val responses0 = ConcurrentSubject[Response](
       MulticastStrategy.publish,
       OverflowStrategy.Unbounded
@@ -88,16 +85,14 @@ object ClientCallListeners {
     def incomingResponses: Observable[Response] = responses0
 
     override def onHeaders(headers: grpc.Metadata): Unit =
-      headers0.compareAndSet(None, Some(headers))
-
-    override def onClose(status: grpc.Status, trailers: grpc.Metadata): Unit =
-      if (status.isOk) responses0.onComplete()
-      else responses0.onError(CallStatus(status, trailers).toException)
-
+      headers0 = Some(headers)
     override def onMessage(message: Response): Unit =
       Task.deferFuture(responses0.onNext(message)).runSyncUnsafe()
 
     override def onReady(): Unit =
       onReadyEffect.tryPut(())
+    override def onClose(status: grpc.Status, trailers: grpc.Metadata): Unit =
+      if (status.isOk) responses0.onComplete()
+      else responses0.onError(CallStatus(status, trailers).toException)
   }
 }
