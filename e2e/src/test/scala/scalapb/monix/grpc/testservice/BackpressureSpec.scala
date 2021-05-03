@@ -12,7 +12,7 @@ import java.time.Instant
 import scala.concurrent.duration.DurationInt
 import scala.util.Random
 
-class TestBackpressure extends munit.FunSuite with GrpcServerFixture with LazyLogging {
+class BackpressureSpec extends munit.FunSuite with GrpcServerFixture with LazyLogging {
   val stub = clientFixture(8002, logger, true)
   def request = Request(Scenario.OK, 1, Array.fill(10)(Random.nextDouble()))
 
@@ -21,7 +21,7 @@ class TestBackpressure extends munit.FunSuite with GrpcServerFixture with LazyLo
   val requestCount = 100
   val slowTask = Task().delayResult(50.milli)
 
-  def requests(scenario: Scenario) = Observable
+  def requests(scenario: Scenario): Observable[Request] = Observable
     .unfold(1)(s => Some(s -> (s + 1)))
     .take(requestCount)
     .map(_ => request.copy(scenario = scenario))

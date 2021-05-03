@@ -3,7 +3,6 @@ package scalapb.monix.grpc.testservice
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.{Metadata, Server, StatusRuntimeException}
 import monix.eval.Task
-import monix.execution.Scheduler.Implicits.global
 import monix.reactive.subjects.{PublishSubject, ReplaySubject, Subject}
 import munit.Location
 import scalapb.monix.grpc.testservice.utils.SilentException
@@ -11,33 +10,25 @@ import scalapb.monix.grpc.testservice.utils.SilentException
 import java.util.concurrent.TimeoutException
 import scala.concurrent.duration.{Duration, DurationInt}
 
-class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLogging {
-  val stub = clientFixture(8000, logger, false)
-  override def munitFixtures = List(stub)
+class TestServiceSpec extends GrpcBaseSpec {
+  override def munitTimeout: Duration = 6.seconds
 
-  implicit val opt = Task.defaultOptions.enableLocalContextPropagation
-
-  test("unary call responds successfully") {
-    val client = stub()
-    client
+  testGrpc("unary call responds successfully") { state =>
+    state.stub
       .unary(Request(Request.Scenario.OK))
-      .map { r =>
-        assertEquals(r.out, 1)
-      }
-      .runToFutureOpt
+      .map(r => assertEquals(r.out, 1))
   }
 
-  test("unary call responds with a failure") {
-    val client = stub()
-    client
+  testGrpc("unary call responds with a failure") { state =>
+    state.stub
       .unary(Request(Request.Scenario.ERROR_NOW))
       .redeem(
         expectedException,
-        r => fail(s"The server should not return a response $r")
+        r => fail(s"Expected status runtime error, obtained $r!")
       )
-      .runToFutureOpt
   }
 
+  /*
   test("unary call times out") {
     val client = stub()
     client
@@ -243,10 +234,10 @@ class TestServerCalls extends munit.FunSuite with GrpcServerFixture with LazyLog
     response
   }
 
+   */
+
   private def expectedException(e: Throwable)(implicit loc: Location) = {
     assert(e.isInstanceOf[StatusRuntimeException])
     assertEquals(e.getMessage, "INTERNAL: SILENT")
   }
-
-  override def munitTimeout: Duration = 2.second
 }
