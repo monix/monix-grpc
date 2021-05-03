@@ -1,14 +1,19 @@
 package scalapb.monix.grpc.testservice
 
+import munit.Location
 import com.typesafe.scalalogging.LazyLogging
 import io.grpc.{Metadata, Server, StatusRuntimeException}
 import monix.eval.Task
 import monix.reactive.subjects.{PublishSubject, ReplaySubject, Subject}
-import munit.Location
-import scalapb.monix.grpc.testservice.utils.SilentException
 
 import java.util.concurrent.TimeoutException
 import scala.concurrent.duration.{Duration, DurationInt}
+import monix.reactive.subjects.PublishToOneSubject
+import scala.concurrent.duration.FiniteDuration
+import java.util.concurrent.TimeUnit
+import monix.execution.CancelablePromise
+import cats.effect.ExitCase
+import io.grpc.Status
 
 class TestServiceSpec extends GrpcBaseSpec {
   override def munitTimeout: Duration = 6.seconds
@@ -19,225 +24,225 @@ class TestServiceSpec extends GrpcBaseSpec {
       .map(r => assertEquals(r.out, 1))
   }
 
-  testGrpc("unary call responds with a failure") { state =>
+  testGrpc("unary call fails with a server error") { state =>
     state.stub
       .unary(Request(Request.Scenario.ERROR_NOW))
-      .redeem(
-        expectedException,
-        r => fail(s"Expected status runtime error, obtained $r!")
-      )
+      .expectServerSilentException
   }
 
-  /*
-  test("unary call times out") {
-    val client = stub()
-    client
+  testGrpc("unary call times out") { state =>
+    state.stub
       .unary(Request(Request.Scenario.DELAY))
       .timeout(1.seconds)
-      .redeem(
-        e => assert(e.isInstanceOf[TimeoutException]),
-        r => fail(s"The server should not return a response $r")
-      )
-      .runToFutureOpt
+      .expectTimeoutException
   }
 
-  test("serverStreaming call responds successfully") {
-    val client = stub()
-    client
+  testGrpc("server streaming call responds successfully") { state =>
+    state.stub
       .serverStreaming(Request(Request.Scenario.OK))
       .toListL
-      .map { r =>
-        assert(r.map(_.out) == Seq(1, 2))
-      }
-      .runToFutureOpt
+      .expectDiff(
+        """
+          |Response(1,0,Vector(),UnknownFieldSet(Map()))
+          |Response(2,0,Vector(),UnknownFieldSet(Map()))
+        """.stripMargin
+      )
   }
 
-  test("serverStreaming call responds with a failure") {
-    val client = stub()
-    client
+  testGrpc("server streaming call fails with a server error") { state =>
+    state.stub
       .serverStreaming(Request(Request.Scenario.ERROR_NOW))
       .toListL
-      .redeem(
-        expectedException,
-        r => fail(s"The server should not return a response $r")
-      )
-      .runToFutureOpt
+      .expectServerSilentException
   }
 
-  test("serverStreaming call responds during the response stream with a failure") {
-    val client = stub()
-    client
+  testGrpc("server streaming call sends error after successful values") { state =>
+    state.stub
       .serverStreaming(Request(Request.Scenario.ERROR_AFTER))
-      .map(r => Right(r))
+      .map(Right(_))
       .onErrorHandle(Left(_))
       .toListL
-      .map { responses =>
-        assert(responses.take(2).map(_.right.get.out) == Seq(1, 2))
-      }
-      .runToFutureOpt
+      .expectDiff(
+        """
+          |Right(Response(1,0,Vector(),UnknownFieldSet(Map())))
+          |Right(Response(2,0,Vector(),UnknownFieldSet(Map())))
+          |Left(io.grpc.StatusRuntimeException: INTERNAL: SILENT)
+        """.stripMargin
+      )
   }
 
-  test("serverStreaming call times out") {
-    val client = stub()
-    client
+  testGrpc("server streaming call times out") { state =>
+    state.stub
       .serverStreaming(Request(Request.Scenario.DELAY))
       .toListL
       .timeout(1.second)
-      .redeem(
-        e => assert(e.isInstanceOf[TimeoutException]),
-        r => fail(s"The server should not return receive a response $r")
-      )
-      .runToFutureOpt
+      .expectTimeoutException
   }
 
-  test("clientStreaming responds successfully") {
-    val client = stub()
-    val subject = ReplaySubject[Request]()
-
-    def response = client
-      .clientStreaming(subject)
-      .map(r => assertEquals(r.out, 3))
-      .runToFutureOpt
-
-    for {
-      _ <- subject.onNext(Request(Request.Scenario.OK))
-      _ <- subject.onNext(Request(Request.Scenario.OK))
-      _ <- subject.onNext(Request(Request.Scenario.OK))
-    } yield subject.onComplete()
-
-    response
-  }
-
-  test("clientStreaming call responds with a failure") {
-    val client = stub()
-    val subject = ReplaySubject[Request]()
-
-    def response = client
-      .clientStreaming(subject)
-      .redeem(
-        expectedException,
-        r => fail(s"The server should not return a response $r")
-      )
-      .runToFutureOpt
-
-    for {
-      _ <- subject.onNext(Request(Request.Scenario.OK))
-      _ <- subject.onNext(Request(Request.Scenario.OK))
-      _ <- subject.onNext(Request(Request.Scenario.ERROR_NOW))
-      _ <- subject.onNext(Request(Request.Scenario.OK))
+  testGrpc("client streaming call responds successfully") { state =>
+    def sendRequests(stream: ClientStream[Request]) = for {
+      _ <- stream.onNextL(Request(Request.Scenario.OK), 200)
+      _ <- stream.onNextL(Request(Request.Scenario.OK), 200)
+      _ <- stream.onNextL(Request(Request.Scenario.OK), 200)
+      _ <- stream.onCompleteL
     } yield ()
 
-    response
+    state.withClientStream(sendRequests) { clientRequests =>
+      state.stub
+        .clientStreaming(clientRequests)
+        .expectResponseValue(3)
+    }
   }
 
-  test("clientStreaming responds with a failure") {
-    val client = stub()
-    val subject = ReplaySubject[Request]()
-
-    def response = client
-      .clientStreaming(subject)
-      .redeem(
-        _ => (),
-        _ => fail("The client send an error and no exception is on the server result")
-      )
-      .runToFutureOpt
-
-    subject.onError(SilentException())
-    response
-  }
-
-  test("clientStreaming call times out") {
-    val client = stub()
-    val subject = ReplaySubject[Request]()
-
-    def response = client
-      .clientStreaming(subject)
-      .timeout(1.second)
-      .redeem(
-        e => assert(e.isInstanceOf[TimeoutException]),
-        r => fail(s"The server should not return a response $r")
-      )
-      .runToFutureOpt
-
-    for {
-      _ <- subject.onNext(Request(Request.Scenario.OK))
-      _ <- subject.onNext(Request(Request.Scenario.OK))
-      _ <- subject.onNext(Request(Request.Scenario.DELAY))
+  testGrpc("client streaming call fails with a server error") { state =>
+    def sendRequests(stream: ClientStream[Request]) = for {
+      _ <- stream.onNextL(Request(Request.Scenario.OK), 200)
+      _ <- stream.onNextL(Request(Request.Scenario.OK), 200)
+      _ <- stream.onNextL(Request(Request.Scenario.ERROR_NOW), 200)
+      _ <- stream.onNextL(Request(Request.Scenario.OK), 200)
+      _ <- stream.onCompleteL
     } yield ()
 
-    response
+    state.withClientStream(sendRequests) { clientRequests =>
+      state.stub
+        .clientStreaming(clientRequests)
+        .expectServerSilentException
+    }
   }
 
-  test("bidiStreaming call succeeds") {
-    val client = stub()
-    val subject = ReplaySubject[Request]()
-    val response = client
-      .bidiStreaming(subject)
-      .toListL
-      .map(r => assertEquals(r.map(_.out), List(1)))
-      .runToFutureOpt
+  testGrpc("client streaming call fails with a client error") { state =>
+    def sendRequests(stream: ClientStream[Request]) = for {
+      _ <- stream.onErrorL(SilentException())
+    } yield ()
 
-    for {
-      _ <- subject.onNext(Request(Request.Scenario.OK))
-    } yield subject.onComplete()
-    response
+    state.withClientStream(sendRequests) { clientRequests =>
+      state.stub
+        .clientStreaming(clientRequests)
+        .expectClientSilentException
+    }
   }
 
-  test("bidiStreaming responds with a failure when the client makes the request stream fail") {
-    val client = stub()
-    val subject = ReplaySubject[Request]()
+  testGrpc("client streaming call times out") { state =>
+    def sendRequests(stream: ClientStream[Request]) = for {
+      _ <- stream.onNextL(Request(Request.Scenario.OK), 0)
+      _ <- stream.onNextL(Request(Request.Scenario.OK), 0)
+      _ <- stream.onNextL(Request(Request.Scenario.DELAY), 0)
+    } yield ()
 
-    def response = client
-      .bidiStreaming(subject)
-      .toListL
-      .redeem(
-        _ => (),
-        r => fail(s"The server should not return a response $r")
+    state.withClientStream(sendRequests) { clientRequests =>
+      state.stub
+        .clientStreaming(clientRequests)
+        .timeout(1.seconds)
+        .expectTimeoutException
+    }
+  }
+
+  testGrpc("bidirectional streaming call succeeds") { state =>
+    def sendRequests(stream: ClientStream[Request]) = for {
+      _ <- stream.onNextL(Request(Request.Scenario.OK), 0)
+      _ <- stream.onCompleteL
+    } yield ()
+
+    state.withClientStream(sendRequests) { clientRequests =>
+      state.stub
+        .bidiStreaming(clientRequests)
+        .toListL
+        .map(_.map(_.out))
+        .expectDiff("1")
+    }
+  }
+
+  testGrpc("bidirectional streaming call fails with a client error") { state =>
+    def sendRequests(stream: ClientStream[Request]) = for {
+      _ <- stream.onErrorL(SilentException())
+    } yield ()
+
+    state.withClientStream(sendRequests) { clientRequests =>
+      state.stub
+        .bidiStreaming(clientRequests)
+        .toListL
+        .expectClientSilentException
+    }
+  }
+
+  testGrpc("bidirectional streaming call fails with a server error") { state =>
+    def sendRequests(stream: ClientStream[Request]) = for {
+      _ <- stream.onNextL(Request(Request.Scenario.OK), 0)
+      _ <- stream.onNextL(Request(Request.Scenario.OK), 0)
+      _ <- stream.onNextL(Request(Request.Scenario.ERROR_NOW), 0)
+    } yield ()
+
+    state.withClientStream(sendRequests) { clientRequests =>
+      state.stub
+        .bidiStreaming(clientRequests)
+        .toListL
+        .expectServerSilentException
+    }
+  }
+
+  testGrpc("bidirectional streaming call times out") { state =>
+    def sendRequests(stream: ClientStream[Request]) = for {
+      _ <- stream.onNextL(Request(Request.Scenario.OK), 0)
+      _ <- stream.onNextL(Request(Request.Scenario.OK), 0)
+      _ <- stream.onNextL(Request(Request.Scenario.DELAY), 0)
+    } yield ()
+
+    state.withClientStream(sendRequests) { clientRequests =>
+      state.stub
+        .bidiStreaming(clientRequests)
+        .toListL
+        .timeout(1.seconds)
+        .expectTimeoutException
+    }
+  }
+
+  implicit class ExpectTaskOps[T](t: Task[T]) {
+
+    /** Expect a silent (benign) exception thrown by the server */
+    def expectServerSilentException(implicit loc: Location): Task[Unit] = {
+      t.redeem(
+        {
+          case err: StatusRuntimeException =>
+            // Don't check cause because for some reason grpc-java makes it null
+            assertEquals(err.getMessage, "INTERNAL: SILENT")
+          case err => fail(s"Expected status runtime exception!", err)
+        },
+        value => fail(s"Expected silent exception in server, obtained value $value!")
       )
-      .runToFutureOpt
+    }
 
-    subject.onError(SilentException())
-    response
-  }
-
-  test("bidiStreaming call responds with a failure") {
-    val client = stub()
-    val subject = ReplaySubject[Request]()
-    val response = client
-      .bidiStreaming(subject)
-      .toListL
-      .redeem(
-        expectedException,
-        r => assertEquals(r.size, 2)
+    /** Expect a silent (benign) exception thrown by the client */
+    def expectClientSilentException(implicit loc: Location): Task[Unit] = {
+      t.redeem(
+        {
+          case err: StatusRuntimeException =>
+            assertEquals(err.getStatus.getCode, Status.Code.CANCELLED)
+            assertNoDiff(
+              err.getStatus.getCause.toString,
+              "scalapb.monix.grpc.testservice.SilentException: SILENT"
+            )
+          case err => fail(s"Expected status runtime exception!", err)
+        },
+        value => fail(s"Expected silent exception in client, obtained value $value!")
       )
-      .runToFutureOpt
+    }
 
-    subject.onNext(Request(Request.Scenario.OK))
-    subject.onNext(Request(Request.Scenario.OK))
-    subject.onNext(Request(Request.Scenario.ERROR_NOW))
-    response
-  }
-
-  test("bidiStreaming call times out") {
-    val client = stub()
-    val subject = ReplaySubject[Request]()
-    val response = client
-      .bidiStreaming(subject)
-      .toListL
-      .timeout(1.second)
-      .redeem(
+    def expectTimeoutException(implicit loc: Location): Task[Unit] = {
+      t.redeem(
         e => assert(e.isInstanceOf[TimeoutException]),
-        r => fail(s"The server should not return a response $r")
+        value => fail(s"Expected timeout exception, obtained value $value!")
       )
-      .runToFutureOpt
+    }
 
-    response
-  }
+    def expectResponseValue(expected: Int)(implicit v: T =:= Response): Task[Unit] =
+      t.map(v.apply(_)).map(r => assertEquals(r.out, expected))
 
-   */
-
-  private def expectedException(e: Throwable)(implicit loc: Location) = {
-    assert(e.isInstanceOf[StatusRuntimeException])
-    assertEquals(e.getMessage, "INTERNAL: SILENT")
+    def expectDiff(expected: String)(implicit
+        v: T <:< List[_],
+        loc: Location
+    ): Task[Unit] = t.map { value =>
+      val obtained = value.mkString(System.lineSeparator())
+      assertNoDiff(obtained, expected)
+    }
   }
 }

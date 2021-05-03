@@ -11,110 +11,82 @@ import scalapb.monix.grpc.testservice.Request.Scenario
 import java.time.Instant
 import scala.concurrent.duration.DurationInt
 import scala.util.Random
+import cats.effect.ExitCase
+import java.util.concurrent.CancellationException
+import monix.reactive.subjects.ReplaySubject
+import scala.collection.mutable
 
-class BackpressureSpec extends munit.FunSuite with GrpcServerFixture with LazyLogging {
-  val stub = clientFixture(8002, logger, true)
-  def request = Request(Scenario.OK, 1, Array.fill(10)(Random.nextDouble()))
+class BackpressureSpec extends GrpcBaseSpec {
 
-  override def munitFixtures = List(stub)
+  testGrpc("bidirectional streaming call backpressures on client side") { state =>
+    state.withClientStream(sendRequests(100, Scenario.SLOW, _)) { clientRequests0 =>
+      val events = new mutable.ListBuffer[Long]()
+      val clientRequests = clientRequests0
+        .doOnNext(_ => Task(events.+=(Instant.now().toEpochMilli())))
 
-  val requestCount = 100
-  val slowTask = Task().delayResult(50.milli)
-
-  def requests(scenario: Scenario): Observable[Request] = Observable
-    .unfold(1)(s => Some(s -> (s + 1)))
-    .take(requestCount)
-    .map(_ => request.copy(scenario = scenario))
-
-  val expectedAverageResponseTime = 45
-
-  test("bidi stream call backpressures on client side".tag(Slow)) {
-    val client = stub()
-    val subject = ConcurrentSubject[Instant](MulticastStrategy.replay)
-
-    val requestStream = requests(Scenario.SLOW)
-      .doOnNext(x => Task(subject.onNext(Instant.now())))
-
-    client
-      .bidiStreaming(requestStream, new Metadata())
-      .doOnNext(m => Task(logger.debug(s"received response ${m.out}")))
-      .completedL
-      .runToFuture
-      .onComplete(_ => subject.onComplete())
-
-    subject
-      .map(_.toEpochMilli)
-      .toListL
-      .map { events =>
-        assert(clue(averageEventDuration(events)) >= clue(expectedAverageResponseTime))
+      state.stub.bidiStreaming(clientRequests).completedL.map { _ =>
+        assertBackpressureFromTimestamps(100, events.toList)
       }
-      .runToFuture
+    }
   }
 
-  test("bidi stream call backpressures on server side".tag(Slow)) {
-    val client = stub()
-
-    client
-      .bidiStreaming(
-        requests(Scenario.BACK_PRESSURE),
-        new Metadata()
-      )
-      .doOnNext(x => Task(logger.debug(s"received response ${x.out}")))
-      .mapEval(r => slowTask.map(_ => r))
-      .map(_.timestamp)
-      .toListL
-      .map { events =>
-        assert(
-          clue(averageEventDuration(events)) >= clue(expectedAverageResponseTime)
-        )
-      }
-      .runToFuture
+  testGrpc("bidirectional streaming call backpressures on server side") { state =>
+    state.withClientStream(sendRequests(100, Scenario.BACK_PRESSURE, _)) { clientRequests =>
+      state.stub
+        .bidiStreaming(clientRequests)
+        .mapEval(r => Task.unit.delayResult(50.millis).map(_ => r.timestamp))
+        .toListL
+        .map(assertBackpressureFromTimestamps(100, _))
+    }
   }
 
-  test("client stream call backpressures on client side".tag(Slow)) {
-    val client = stub()
-    val subject = ConcurrentSubject[Instant](MulticastStrategy.replay)
+  testGrpc("client streaming call backpressures on client side") { state =>
+    state.withClientStream(sendRequests(100, Scenario.SLOW, _)) { clientRequests0 =>
+      val events = new mutable.ListBuffer[Long]()
+      val clientRequests = clientRequests0
+        .doOnNext(_ => Task(events.+=(Instant.now().toEpochMilli())))
 
-    val requestStream = requests(Scenario.SLOW)
-      .doOnNext(_ => Task(subject.onNext(Instant.now())))
-
-    client
-      .clientStreaming(requestStream, new Metadata())
-      .runToFuture
-      .onComplete(_ => subject.onComplete())
-
-    subject
-      .map(_.toEpochMilli)
-      .toListL
-      .map { events =>
-        assert(
-          clue(averageEventDuration(events)) >= clue(expectedAverageResponseTime)
-        )
+      state.stub.clientStreaming(clientRequests).map { _ =>
+        assertBackpressureFromTimestamps(100, events.toList)
       }
-      .runToFuture
+    }
   }
 
-  test("server stream call backpressures on server side".tag(Slow)) {
-    val client = stub()
-    client
-      .serverStreaming(Request(Scenario.BACK_PRESSURE, requestCount), new Metadata())
-      .doOnNext(x => Task(logger.info(s"received: ${x.out}")))
-      .mapEval(r => slowTask.map(_ => r))
+  testGrpc("server streaming call backpressures on server side") { state =>
+    state.stub
+      .serverStreaming(Request(Scenario.BACK_PRESSURE, 100))
+      .mapEval(r => Task.unit.delayResult(50.millis).map(_ => r.timestamp))
       .toListL
-      .map { events =>
-        assert(
-          clue(averageEventDuration(events.map(_.timestamp))) >= clue(expectedAverageResponseTime)
-        )
-      }
-      .runToFuture
+      .map(assertBackpressureFromTimestamps(100, _))
   }
 
-  def averageEventDuration(timestamps: Seq[Long], expectedResponses: Int = requestCount) = {
-    assertEquals(timestamps.size, expectedResponses)
-    timestamps
+  private def generateRequest(idx: Int, scenario: Scenario): Request =
+    Request(scenario, idx, Array.fill(10)(Random.nextDouble()))
+  private def sendRequests(
+      count: Int,
+      scenario: Scenario,
+      stream: ClientStream[Request]
+  ): Task[Unit] = Observable
+    .range(1, count + 1)
+    .mapEval(_ => stream.onNextL(generateRequest(1, scenario), 0))
+    .completedL
+    .guaranteeCase {
+      case ExitCase.Completed => stream.onCompleteL
+      case ExitCase.Error(err) => stream.onErrorL(err)
+      case ExitCase.Canceled => stream.onErrorL(new CancellationException())
+    }
+
+  private def assertBackpressureFromTimestamps(
+      expectedCount: Int,
+      obtainedTimestamps: Seq[Long]
+  )(implicit loc: munit.Location): Unit = {
+    assertEquals(obtainedTimestamps.size, expectedCount)
+    val average = obtainedTimestamps.iterator
       .sliding(2)
       .map(timestamps => timestamps.last - timestamps.head)
-      .sum / timestamps.size
+      .sum / obtainedTimestamps.size
 
+    val expectedAverageResponseTime = 45
+    assert(clue(average) >= clue(expectedAverageResponseTime))
   }
 }

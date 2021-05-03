@@ -64,13 +64,14 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
       _ <- start(listener, headers)
       _ <- requestMessagesFromUnaryCall
       runningRequest <- Task.racePair(
-        listener.waitForResponse,
-        sendStreamingRequests(messages, listener.onReadyEffect)
+        listener.waitForResponse.attempt,
+        sendStreamingRequests(messages, listener.onReadyEffect).attempt
       )
       response <- runningRequest match {
-        case Left((response, clientStream)) =>
-          clientStream.cancel.onErrorHandle(_ => ()).map(_ => response)
-        case Right((responseFiber, _)) => responseFiber.join
+        case Right((responseFiber, _)) =>
+          responseFiber.join.flatMap(Task.fromEither(_))
+        case Left((response: Either[Throwable, Response], clientStreamFiber)) =>
+          clientStreamFiber.cancel.flatMap(_ => Task.fromEither(response))
       }
     } yield response
 
@@ -95,8 +96,8 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
       .completedL
       .guaranteeCase {
         case ExitCase.Completed => halfClose
-        case ExitCase.Error(e) => cancel("failed", Some(e))
-        case ExitCase.Canceled => cancel("call canceled", None)
+        case ExitCase.Error(e) => cancel("Caught unexpected client stream error!", Some(e))
+        case ExitCase.Canceled => cancel("Client stream was canceled!", None)
       }
   }
 

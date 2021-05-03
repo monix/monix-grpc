@@ -2,7 +2,6 @@ package scalapb.monix.grpc.testservice
 
 import io.grpc
 import com.typesafe.scalalogging.Logger
-import scalapb.monix.grpc.testservice.utils.TestServer
 
 import scala.util.Try
 import scala.concurrent.blocking
@@ -11,7 +10,6 @@ import monix.eval.Task
 import monix.execution.CancelableFuture
 import cats.effect.Resource
 import java.util.concurrent.TimeUnit
-import scalapb.monix.grpc.testservice.utils.TestService
 import monix.execution.Scheduler
 import io.grpc.netty.NettyServerBuilder
 import com.typesafe.scalalogging.LazyLogging
@@ -19,6 +17,16 @@ import io.grpc.inprocess.InProcessServerBuilder
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.CallOptions
 import java.util.UUID
+import monix.reactive.subjects.Subject
+import monix.execution.Cancelable
+import monix.reactive.observers.Subscriber
+import monix.execution.Ack
+import scala.concurrent.Future
+import monix.reactive.subjects.PublishSubject
+import monix.execution.CancelablePromise
+import cats.effect.ExitCase
+import monix.reactive.Observable
+import io.grpc.netty.NettyChannelBuilder
 
 trait GrpcServerFixture {
   self: munit.Suite =>
@@ -49,28 +57,73 @@ trait GrpcServerFixture {
 }
 
 abstract class GrpcBaseSpec extends munit.FunSuite with LazyLogging {
-  case class GrpcTestState(
-      stub: TestServiceApi,
-      grpcServer: grpc.Server,
-      grpcChannel: grpc.ManagedChannel
-  )
+  final class GrpcTestState(
+      val stub: TestServiceApi,
+      private[this] val grpcServer: grpc.Server,
+      private[this] val grpcChannel: grpc.ManagedChannel
+  ) {
+
+    def withClientStream(
+        sendRequests: ClientStream[Request] => Task[Unit]
+    )(
+        receiveResponses: Observable[Request] => Task[Unit]
+    ): Task[Unit] = {
+      val subscribed = CancelablePromise[Unit]()
+      val subject = PublishSubject[Request]()
+      val stream = new ClientStream[Request](subject)
+
+      val startSendingRequests = for {
+        _ <- Task.fromCancelablePromise(subscribed)
+        result <- sendRequests(stream).onErrorHandle(
+          logger.error("Couldn't send request in client stream!", _)
+        )
+      } yield result
+
+      startSendingRequests.start.flatMap { sendFiber =>
+        val requests = subject.doAfterSubscribe(Task(subscribed.success(())))
+        receiveResponses(requests).guaranteeCase {
+          case ExitCase.Completed => sendFiber.join
+          case ExitCase.Canceled => sendFiber.cancel
+          case ExitCase.Error(err) => sendFiber.cancel
+        }
+      }
+    }
+  }
+
+  final class ClientStream[T](underlying: PublishSubject[T]) {
+    def onErrorL(err: Throwable): Task[Unit] =
+      Task(underlying.onError(err))
+    def onCompleteL: Task[Unit] =
+      Task(underlying.onComplete())
+    def onNextL(elem: T, randomMillis: Int): Task[Unit] = Task.defer {
+      Task
+        .sleep(randomDuration(randomMillis))
+        .>>(Task.deferFuture(underlying.onNext(elem)).void)
+    }
+  }
 
   private val defaultPort: Int = 8002
   private val testId = UUID.randomUUID().toString
-  implicit val taskCtx = Task.defaultOptions.enableLocalContextPropagation
+
+  implicit val scheduler: Scheduler = Scheduler.Implicits.global
+  implicit val taskCtx: Task.Options = Task.defaultOptions.enableLocalContextPropagation
 
   def testGrpc[T](name: String)(
       body: GrpcTestState => Any
+  )(implicit loc: munit.Location): Unit =
+    testGrpc(name: munit.TestOptions)(body)
+
+  def testGrpc[T](opts: munit.TestOptions)(
+      body: GrpcTestState => Any
   )(implicit loc: munit.Location): Unit = {
-    import monix.execution.Scheduler.Implicits.global
     val stateResource = serverResource(defaultPort).flatMap { server =>
       channelResource(defaultPort).map { channel =>
         val stub = TestServiceApi.stub(channel, CallOptions.DEFAULT)
-        GrpcTestState(stub, server, channel)
+        new GrpcTestState(stub, server, channel)
       }
     }
 
-    test(name) {
+    test(opts) {
       val setupTimeout = FiniteDuration(3, TimeUnit.SECONDS)
       val totalTimeout = FiniteDuration(munitTimeout._1, munitTimeout._2)
       val minimumTimeout = setupTimeout + setupTimeout
@@ -111,5 +164,10 @@ abstract class GrpcBaseSpec extends munit.FunSuite with LazyLogging {
       case value => Task.unit
     }
     testTask.timeout(timeout)
+  }
+
+  private def randomDuration(untilMillis: Int): FiniteDuration = {
+    val n = scala.math.max(untilMillis, 1)
+    FiniteDuration(scala.util.Random.nextInt(n), TimeUnit.MILLISECONDS)
   }
 }
