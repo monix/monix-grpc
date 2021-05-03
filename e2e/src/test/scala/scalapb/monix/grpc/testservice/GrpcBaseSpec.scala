@@ -3,7 +3,6 @@ package scalapb.monix.grpc.testservice
 import io.grpc
 import com.typesafe.scalalogging.Logger
 
-import scala.util.Try
 import scala.concurrent.blocking
 import scala.concurrent.duration.FiniteDuration
 import monix.eval.Task
@@ -17,44 +16,11 @@ import io.grpc.inprocess.InProcessServerBuilder
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.CallOptions
 import java.util.UUID
-import monix.reactive.subjects.Subject
-import monix.execution.Cancelable
-import monix.reactive.observers.Subscriber
-import monix.execution.Ack
-import scala.concurrent.Future
 import monix.reactive.subjects.PublishSubject
 import monix.execution.CancelablePromise
 import cats.effect.ExitCase
 import monix.reactive.Observable
 import io.grpc.netty.NettyChannelBuilder
-
-trait GrpcServerFixture {
-  self: munit.Suite =>
-
-  def clientFixture(
-      port: Int,
-      logger: Logger,
-      inprocess: Boolean = false
-  ): Fixture[TestServiceApi] = new Fixture[TestServiceApi]("server") {
-    private val server: grpc.Server = TestServer.createServer(port, logger, inprocess)
-    private var client: TestServiceApi = null
-    private var channel: grpc.ManagedChannel = null
-
-    def apply(): TestServiceApi = client
-
-    override def beforeAll(): Unit = {
-      server.start()
-      val channelClient = TestServer.client(port, inprocess)
-      channel = channelClient._1
-      client = channelClient._2
-    }
-
-    override def afterAll(): Unit = {
-      Try(channel.shutdown())
-      Try(server.shutdown())
-    }
-  }
-}
 
 abstract class GrpcBaseSpec extends munit.FunSuite with LazyLogging {
   final class GrpcTestState(
