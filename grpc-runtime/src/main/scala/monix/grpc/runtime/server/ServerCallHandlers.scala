@@ -3,7 +3,6 @@ package monix.grpc.runtime.server
 import cats.effect.ExitCase
 import io.grpc
 import monix.eval.{Task, TaskLocal}
-import monix.execution.atomic.AtomicAny
 import monix.execution.{AsyncVar, BufferCapacity, CancelablePromise, Scheduler}
 import monix.reactive.subjects.ConcurrentSubject
 import monix.reactive.{MulticastStrategy, Observable, OverflowStrategy}
@@ -81,7 +80,7 @@ object ServerCallHandlers {
   ) extends grpc.ServerCall.Listener[T] {
     val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
 
-    private val requestMsg = AtomicAny[Option[T]](None)
+    private var requestMsg: Option[T] = None
     private val completed = CancelablePromise[grpc.Status]()
     private val isCancelled = CancelablePromise[Unit]()
 
@@ -94,7 +93,7 @@ object ServerCallHandlers {
         _ <- call.requestMessagesFromUnaryCall
         _ <- Task.fromCancelablePromise(completed)
         _ <- call.sendHeaders(metadata)
-        _ <- requestMsg.get() match {
+        _ <- requestMsg match {
           case Some(msg) => sendResponse(msg)
           case None =>
             val errMsg = "Missing request message for unary call!"
@@ -115,13 +114,13 @@ object ServerCallHandlers {
     override def onCancel(): Unit =
       isCancelled.trySuccess(())
 
-    override def onMessage(msg: T): Unit = {
-      if (requestMsg.compareAndSet(None, Some(msg))) ()
-      else {
+    override def onMessage(msg: T): Unit = requestMsg match {
+      case None =>
+        requestMsg = Option(msg)
+      case Some(msg) =>
         val errMsg = "Too many requests received for unary request"
         val errStatus = grpc.Status.INTERNAL.withDescription(errMsg)
         completed.tryFailure(errStatus.asRuntimeException())
-      }
     }
 
     override def onReady(): Unit = onReadyEffect.tryPut(())
