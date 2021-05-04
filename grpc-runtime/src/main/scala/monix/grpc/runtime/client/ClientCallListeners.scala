@@ -42,8 +42,8 @@ object ClientCallListeners {
         if (!callStatus.isOk) Task.raiseError(callStatus.toException)
         else {
           response0 match {
-            case Some(response) if response != null => Task.now(response)
-            case (None | Some(null)) =>
+            case Some(response) => Task.now(response)
+            case None =>
               val errMsg = "No value received for unary client call!"
               val errStatus = grpc.Status.INTERNAL.withDescription(errMsg)
               Task.raiseError(errStatus.asRuntimeException(callStatus.trailers))
@@ -55,7 +55,7 @@ object ClientCallListeners {
     override def onHeaders(headers: grpc.Metadata): Unit =
       headers0 = Some(headers)
     override def onMessage(message: Response): Unit = response0 match {
-      case None => response0 = Some(message)
+      case None => response0 = Option(message)
       case Some(_) =>
         val errMsg = "Too many response messages, expected only one!"
         val errStatus = grpc.Status.INTERNAL.withDescription(errMsg)

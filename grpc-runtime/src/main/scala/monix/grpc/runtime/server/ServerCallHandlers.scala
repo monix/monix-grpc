@@ -94,8 +94,8 @@ object ServerCallHandlers {
         _ <- Task.fromCancelablePromise(completed)
         _ <- call.sendHeaders(metadata)
         _ <- requestMsg match {
-          case Some(msg) if msg != null => sendResponse(msg)
-          case (None | Some(null)) =>
+          case Some(msg) => sendResponse(msg)
+          case None =>
             val errMsg = "Missing request message for unary call!"
             val errStatus = grpc.Status.INTERNAL.withDescription(errMsg)
             Task.raiseError(errStatus.asRuntimeException(metadata))
@@ -116,7 +116,7 @@ object ServerCallHandlers {
 
     override def onMessage(msg: T): Unit = requestMsg match {
       case None =>
-        requestMsg = Some(msg)
+        requestMsg = Option(msg)
       case Some(msg) =>
         val errMsg = "Too many requests received for unary request"
         val errStatus = grpc.Status.INTERNAL.withDescription(errMsg)
