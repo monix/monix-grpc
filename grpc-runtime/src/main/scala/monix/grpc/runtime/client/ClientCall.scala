@@ -5,6 +5,10 @@ import io.grpc
 import monix.eval.{Task, TaskLocal}
 import monix.execution.{AsyncVar, Scheduler}
 import monix.reactive.Observable
+import io.grpc.StatusRuntimeException
+import scala.concurrent.duration.FiniteDuration
+import java.util.concurrent.TimeUnit
+import monix.eval.Fiber
 
 class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[Request, Response])
     extends AnyVal {
@@ -69,13 +73,26 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
       _ <- requestMessagesFromUnaryCall
       runningRequest <- Task.racePair(
         listener.waitForResponse.attempt,
-        sendStreamingRequests(messages, listener.onReadyEffect).attempt
+        sendStreamingRequests(messages, listener.onReadyEffect)
       )
       response <- runningRequest match {
-        case Right((responseFiber, _)) =>
+        case Right((responseFiber, Right(_))) =>
           responseFiber.join.flatMap(Task.fromEither(_))
+        case Right((responseFiber, Left(clientCallError))) =>
+          responseFiber.join
+            .flatMap(Task.fromEither(_))
+            .onErrorRecoverWith { case ClientCall.CancelledWithoutCause(err) =>
+              val newStatus = err.getStatus.withCause(clientCallError)
+              Task.raiseError(newStatus.asRuntimeException(err.getTrailers()))
+            }
+
         case Left((response: Either[Throwable, Response], clientStreamFiber)) =>
-          clientStreamFiber.cancel.flatMap(_ => Task.fromEither(response))
+          response match {
+            case Left(ClientCall.CancelledWithoutCause(err)) =>
+              rethrowWithClientCauseIfError(err, clientStreamFiber)
+                .guarantee(clientStreamFiber.cancel)
+            case response => clientStreamFiber.cancel.flatMap(_ => Task.fromEither(response))
+          }
       }
     } yield response
 
@@ -87,7 +104,7 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
   private def sendStreamingRequests(
       requests: Observable[Request],
       onReady: AsyncVar[Unit]
-  ): Task[Unit] = {
+  ): Task[Either[Throwable, Unit]] = {
     def sendMessageWhenReady(request: Request): Task[Unit] =
       // Don't send message until the `onReady` async var is full and the call is ready
       Task.deferFuture(onReady.take()).restartUntil(_ => call.isReady).>>(sendMessage(request))
@@ -103,6 +120,7 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
         case ExitCase.Error(e) => cancel("Caught unexpected client stream error!", Some(e))
         case ExitCase.Canceled => cancel("Client stream was canceled!", None)
       }
+      .attempt
   }
 
   def streamingToStreamingCall(
@@ -118,8 +136,11 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
         listener.incomingResponses
           .doAfterSubscribe(request(1))
           .doOnNext(_ => request(1))
+          .onErrorRecoverWith { case ClientCall.CancelledWithoutCause(serverCallError) =>
+            Observable.fromTask(rethrowWithClientCauseIfError(serverCallError, sendRequestsFiber))
+          }
           .guaranteeCase {
-            case ExitCase.Completed => sendRequestsFiber.join
+            case ExitCase.Completed => sendRequestsFiber.join.void
             case ExitCase.Canceled => sendRequestsFiber.cancel
             case ExitCase.Error(err) => sendRequestsFiber.cancel
           }
@@ -157,6 +178,18 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
       .executeWithOptions(_.enableLocalContextPropagation)
     Observable.fromTask(subscribingTask).flatten
   }
+
+  private def rethrowWithClientCauseIfError(
+      err: StatusRuntimeException,
+      fiber: Fiber[Either[Throwable, Unit]]
+  ): Task[Nothing] = fiber.join
+    .timeoutTo(FiniteDuration(100, TimeUnit.SECONDS), Task(Right(())))
+    .flatMap {
+      case Left(clientCallError: Throwable) =>
+        val newStatus = err.getStatus.withCause(clientCallError)
+        Task.raiseError(newStatus.asRuntimeException(err.getTrailers()))
+      case Right(_) => Task.raiseError(err)
+    }
 
   private def start(
       listener: grpc.ClientCall.Listener[Response],
@@ -196,5 +229,16 @@ object ClientCall {
     new ClientCall(
       channel.newCall[Request, Response](methodDescriptor, callOptions)
     )
+  }
+
+  // Needs to be in companion because scalac doesn't allow it in a value class
+  private[ClientCall] object CancelledWithoutCause {
+    def unapply(err: Throwable): Option[StatusRuntimeException] = err match {
+      case err: StatusRuntimeException
+          if err.getStatus.getCode == grpc.Status.Code.CANCELLED &&
+            err.getStatus.getCause == null =>
+        Some(err)
+      case _ => None
+    }
   }
 }
