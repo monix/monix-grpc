@@ -95,7 +95,10 @@ class ServerCallTest extends FunSuite {
 
     Task(listener.onCancel()).delayExecution(2.milli).runAsyncAndForget
     mock.onClose.map { case (status, _) =>
-      assertEquals(status, Status.CANCELLED)
+      assertNoDiff(
+        status.toString,
+        "Status{code=CANCELLED, description=Propagating cancellation because server response handler was cancelled!, cause=null}"
+      )
     }
   }
 }

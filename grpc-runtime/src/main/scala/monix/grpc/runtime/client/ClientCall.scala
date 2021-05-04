@@ -19,8 +19,10 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
       _ <- requestMessagesFromUnaryCall
       _ <- sendMessage(message).guaranteeCase {
         case ExitCase.Completed => halfClose
-        case ExitCase.Error(e) => cancel("error", Some(e))
-        case ExitCase.Canceled => cancel("canceled", None)
+        case ExitCase.Error(e) =>
+          cancel("Caught error when sending client message", Some(e))
+        case ExitCase.Canceled =>
+          cancel("Unexpected cancellation when sending client message", None)
       }
       response <- listener.waitForResponse
     } yield response
@@ -41,8 +43,10 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
       _ <- request(1)
       _ <- sendMessage(message).guaranteeCase {
         case ExitCase.Completed => halfClose
-        case ExitCase.Error(e) => cancel("error", Some(e))
-        case ExitCase.Canceled => cancel("canceled", None)
+        case ExitCase.Error(e) =>
+          cancel("Caught error when sending client message", Some(e))
+        case ExitCase.Canceled =>
+          cancel("Unexpected cancellation when sending client message", None)
       }
     } yield ()
 
@@ -130,9 +134,9 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
   private def runResponseTaskHandler[R](response: Task[R]): Task[R] = {
     response.guaranteeCase {
       case ExitCase.Completed => Task.unit
-      case ExitCase.Canceled => cancel(s"Cancelling call $call", None)
+      case ExitCase.Canceled => cancel(s"Client cancelled call $call", None)
       case ExitCase.Error(err) =>
-        val cancelMsg = s"Cancelling call, found unexpected error ${err.getMessage}"
+        val cancelMsg = s"Caught unexpected error when processing response for $call"
         cancel(cancelMsg, Some(err))
     }
   }
@@ -140,9 +144,9 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
   private def runResponseObservableHandler[R](response: Observable[R]): Observable[R] = {
     response.guaranteeCase {
       case ExitCase.Completed => Task.unit
-      case ExitCase.Canceled => cancel(s"Cancelling call $call", None)
+      case ExitCase.Canceled => cancel(s"Client cancelled call $call", None)
       case ExitCase.Error(err) =>
-        val cancelMsg = s"Cancelling call, found unexpected error ${err.getMessage}"
+        val cancelMsg = s"Caught unexpected error when processing response for $call"
         cancel(cancelMsg, Some(err))
     }
   }

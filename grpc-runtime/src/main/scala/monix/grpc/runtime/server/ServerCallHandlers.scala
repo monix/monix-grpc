@@ -245,8 +245,10 @@ object ServerCallHandlers {
   ): Task[Unit] = {
     val finalHandler = handleResponse.guaranteeCase {
       case ExitCase.Completed => call.closeStream(grpc.Status.OK, new grpc.Metadata())
-      case ExitCase.Canceled => call.closeStream(grpc.Status.CANCELLED, new grpc.Metadata())
       case ExitCase.Error(err) => reportError(err, call, new grpc.Metadata())
+      case ExitCase.Canceled =>
+        val description = "Propagating cancellation because server response handler was cancelled!"
+        call.closeStream(grpc.Status.CANCELLED.withDescription(description), new grpc.Metadata())
     }
 
     // If `isCancelled` is completed, then client cancelled the grpc call and
