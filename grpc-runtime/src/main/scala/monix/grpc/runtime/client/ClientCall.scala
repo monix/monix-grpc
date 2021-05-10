@@ -183,7 +183,7 @@ class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[R
       err: StatusRuntimeException,
       fiber: Fiber[Either[Throwable, Unit]]
   ): Task[Nothing] = fiber.join
-    .timeoutTo(FiniteDuration(100, TimeUnit.SECONDS), Task(Right(())))
+    .timeoutTo(FiniteDuration(50, TimeUnit.MILLISECONDS), Task(Right(())))
     .flatMap {
       case Left(clientCallError: Throwable) =>
         val newStatus = err.getStatus.withCause(clientCallError)

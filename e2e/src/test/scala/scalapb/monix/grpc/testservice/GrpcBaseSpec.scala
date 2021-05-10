@@ -50,7 +50,7 @@ abstract class GrpcBaseSpec extends munit.FunSuite with LazyLogging {
         receiveResponses(requests).guaranteeCase {
           case ExitCase.Completed => sendFiber.join
           case ExitCase.Canceled => sendFiber.cancel
-          case ExitCase.Error(err) => sendFiber.cancel
+          case ExitCase.Error(_) => sendFiber.cancel
         }
       }
     }
