@@ -238,11 +238,10 @@ class TestServiceSpec extends GrpcBaseSpec {
 
     def expectDiff(
         expected: String
-      )(
-        implicit
+    )(implicit
         v: T <:< List[_],
         loc: Location
-      ): Task[Unit] = t.map { value =>
+    ): Task[Unit] = t.map { value =>
       val obtained = value.mkString(System.lineSeparator())
       assertNoDiff(obtained, expected)
     }

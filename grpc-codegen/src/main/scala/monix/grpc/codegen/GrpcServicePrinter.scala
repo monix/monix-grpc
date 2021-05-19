@@ -8,7 +8,7 @@ class GrpcServicePrinter(
     service: ServiceDescriptor,
     serviceSuffix: String,
     implicits: DescriptorImplicits
-  ) {
+) {
   import implicits._
   object defs {
     private val monixPkg = "_root_.monix"
@@ -60,15 +60,15 @@ class GrpcServicePrinter(
 
     p.add(
       s"""  ${method.deprecatedAnnotation}val ${method.grpcDescriptor.nameSymbol}: $grpcMethodDescriptor[${method.inputType.scalaType}, ${method.outputType.scalaType}] =
-        |     $grpcMethodDescriptor.newBuilder()
-        |       .setType($grpcMethodDescriptor.MethodType.$methodType)
-        |       .setFullMethodName($grpcMethodDescriptor.generateFullMethodName("${service.getFullName}", "${method.getName}"))
-        |       .setSampledToLocalTracing(true)
-        |       .setRequestMarshaller(${marshaller(method.inputType)})
-        |       .setResponseMarshaller(${marshaller(method.outputType)})
-        |       .setSchemaDescriptor(_root_.scalapb.grpc.ConcreteProtoMethodDescriptorSupplier.fromMethodDescriptor(${method.javaDescriptorSource}))
-        |       .build()
-        |""".stripMargin
+         |     $grpcMethodDescriptor.newBuilder()
+         |       .setType($grpcMethodDescriptor.MethodType.$methodType)
+         |       .setFullMethodName($grpcMethodDescriptor.generateFullMethodName("${service.getFullName}", "${method.getName}"))
+         |       .setSampledToLocalTracing(true)
+         |       .setRequestMarshaller(${marshaller(method.inputType)})
+         |       .setResponseMarshaller(${marshaller(method.outputType)})
+         |       .setSchemaDescriptor(_root_.scalapb.grpc.ConcreteProtoMethodDescriptorSupplier.fromMethodDescriptor(${method.javaDescriptorSource}))
+         |       .build()
+         |""".stripMargin
     )
   }
 

@@ -41,7 +41,7 @@ class ClientCallTest extends FunSuite {
       assertEquals(amountRequested, 2)
       assertEquals(messageSend, 1)
       assertEquals(response, 2)
-      assert(mock.halfClosed.get)
+      assert(mock.halfClosed.get())
     }
     test.runToFuture
   }

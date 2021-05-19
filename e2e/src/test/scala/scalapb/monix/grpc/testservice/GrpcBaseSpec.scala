@@ -30,13 +30,13 @@ abstract class GrpcBaseSpec extends munit.FunSuite {
       val stub: TestServiceApi,
       private[this] val grpcServer: grpc.Server,
       private[this] val grpcChannel: grpc.ManagedChannel
-    ) {
+  ) {
 
     def withClientStream(
         sendRequests: ClientStream[Request] => Task[Unit]
-      )(
+    )(
         receiveResponses: Observable[Request] => Task[Unit]
-      ): Task[Unit] = {
+    ): Task[Unit] = {
       val subscribed = CancelablePromise[Unit]()
       val subject = PublishSubject[Request]()
       val stream = new ClientStream[Request](subject)
@@ -49,7 +49,7 @@ abstract class GrpcBaseSpec extends munit.FunSuite {
       } yield result
 
       startSendingRequests.start.flatMap { sendFiber =>
-        val requests = subject.doAfterSubscribe(Task(subscribed.success(())))
+        val requests = subject.doAfterSubscribe(Task(subscribed.success(())).void)
         receiveResponses(requests).guaranteeCase {
           case ExitCase.Completed => sendFiber.join
           case ExitCase.Canceled => sendFiber.cancel
@@ -79,20 +79,20 @@ abstract class GrpcBaseSpec extends munit.FunSuite {
 
   def testGrpc[T](
       name: String
-    )(
+  )(
       body: GrpcTestState => Any
-    )(
-      implicit loc: munit.Location
-    ): Unit =
+  )(implicit
+      loc: munit.Location
+  ): Unit =
     testGrpc(name: munit.TestOptions)(body)
 
   def testGrpc[T](
       opts: munit.TestOptions
-    )(
+  )(
       body: GrpcTestState => Any
-    )(
-      implicit loc: munit.Location
-    ): Unit = {
+  )(implicit
+      loc: munit.Location
+  ): Unit = {
     val stateResource = serverResource(defaultPort).flatMap { server =>
       channelResource(defaultPort).map { channel =>
         val stub = TestServiceApi.stub(channel, CallOptions.DEFAULT)
@@ -102,7 +102,7 @@ abstract class GrpcBaseSpec extends munit.FunSuite {
 
     test(opts) {
       val setupTimeout = FiniteDuration(3, TimeUnit.SECONDS)
-      val totalTimeout = munitTimeout
+      val totalTimeout = FiniteDuration(munitTimeout.toNanos, TimeUnit.NANOSECONDS)
       val minimumTimeout = setupTimeout + setupTimeout
       assert(totalTimeout >= minimumTimeout, s"Minimum allowed munit timeout is $minimumTimeout!")
       val testCaseTimeout = totalTimeout.-(setupTimeout)
@@ -112,10 +112,9 @@ abstract class GrpcBaseSpec extends munit.FunSuite {
 
   private def serverResource(
       port: Int
-    )(
-      implicit
+  )(implicit
       scheduler: Scheduler
-    ): Resource[Task, grpc.Server] = Resource {
+  ): Resource[Task, grpc.Server] = Resource {
     val service = TestServiceApi.bindService(new TestService(logger))
     //val server = NettyServerBuilder.forPort(port).addService(service).build()
     val server = InProcessServerBuilder.forName(testId).addService(service).build()
@@ -126,15 +125,14 @@ abstract class GrpcBaseSpec extends munit.FunSuite {
 
   private def channelResource(
       port: Int
-    )(
-      implicit
+  )(implicit
       scheduler: Scheduler
-    ): Resource[Task, grpc.ManagedChannel] = Resource {
+  ): Resource[Task, grpc.ManagedChannel] = Resource {
     Task {
       val channel = InProcessChannelBuilder.forName(testId).build()
       //val channel = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
       val closeChannel = Task(blocking(channel.shutdownNow())).void
-        .guarantee(Task(blocking(channel.awaitTermination(1, TimeUnit.SECONDS))))
+        .guarantee(Task(blocking(channel.awaitTermination(1, TimeUnit.SECONDS))).void)
         .onErrorHandle(err => logger.error(s"Timed out to close grpc client after 1s!", err))
       channel -> closeChannel
     }

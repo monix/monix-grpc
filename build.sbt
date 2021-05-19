@@ -6,7 +6,6 @@ inThisBuild(
   List(
     resolvers += Resolver.sonatypeRepo("snapshots"),
     resolvers += Resolver.mavenCentral,
-
     organization := "me.vican.jorge",
     homepage := Some(url("https://github.com/jvican/dijon")),
     licenses := Seq("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
@@ -58,7 +57,6 @@ lazy val grpcCodeGen = projectMatrix
     )
   )
 
-
 lazy val codeGenJVM212 = grpcCodeGen.jvm(Scala212)
 
 lazy val protocGenMonixGrpc = protocGenProject("protoc-gen-monix-grpc", codeGenJVM212)
@@ -78,10 +76,10 @@ lazy val e2e = projectMatrix
     libraryDependencies ++= grpcDepenencies ++ munit ++ monix ++ logging,
     testFrameworks += new TestFramework("munit.Framework"),
     Compile / PB.targets := Seq(
-      scalapb.gen(grpc = false) -> (Test / sourceManaged ).value,
+      scalapb.gen(grpc = false) -> (Test / sourceManaged).value,
       genModule(
         "monix.grpc.codegen.GrpcCodeGenerator$"
-      ) -> ( Test / sourceManaged).value
+      ) -> (Test / sourceManaged).value
     ),
     PB.protocVersion := "3.13.0",
     codeGenClasspath := (codeGenJVM212 / Compile / fullClasspath).value

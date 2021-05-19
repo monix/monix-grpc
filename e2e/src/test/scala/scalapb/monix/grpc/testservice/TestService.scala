@@ -83,7 +83,7 @@ class TestService(logger: Logger) extends TestServiceApi {
   }
 
   private def generateLargeResponse(id: Int): Response =
-    Response(id, Instant.now().toEpochMilli, Array.fill(10)(Random.nextDouble()))
+    Response(id, Instant.now().toEpochMilli, IndexedSeq.fill(10)(Random.nextDouble()))
   private def generateNextResponseFrom(response: Response): Response =
     response.copy(out = response.out + 1, timestamp = Instant.now.toEpochMilli())
 }
