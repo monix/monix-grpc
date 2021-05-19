@@ -16,7 +16,7 @@ Add the following to your `project/plugins.sbt`:
 
     val MonixGrpcVersion = "0.0.1"
 
-    addSbtPlugin("com.thesamet" % "sbt-protoc" % "1.0.16")
+    addSbtPlugin("com.thesamet" % "sbt-protoc" % "1.0.4")
 
     libraryDependencies += "me.vican.jorge" %% "monix-grpc-codegen" % MonixGrpcVersion
 
