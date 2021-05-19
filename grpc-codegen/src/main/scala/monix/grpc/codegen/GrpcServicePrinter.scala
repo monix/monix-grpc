@@ -8,7 +8,7 @@ class GrpcServicePrinter(
     service: ServiceDescriptor,
     serviceSuffix: String,
     implicits: DescriptorImplicits
-) {
+  ) {
   import implicits._
   object defs {
     private val monixPkg = "_root_.monix"
@@ -23,8 +23,6 @@ class GrpcServicePrinter(
 
     val ClientCall = s"$thisPkg.client.ClientCall"
     val ServerCallHandlers = s"$thisPkg.server.ServerCallHandlers"
-    val ObservableOps = s"$thisPkg.utils.ObservableOps"
-
     val Channel = s"$grpcPkg.Channel"
     val Metadata = s"$grpcPkg.Metadata"
     val CallOptions = s"$grpcPkg.CallOptions"
@@ -60,15 +58,15 @@ class GrpcServicePrinter(
 
     p.add(
       s"""${method.deprecatedAnnotation}val ${method.grpcDescriptor.nameSymbol}: $grpcMethodDescriptor[${method.inputType.scalaType}, ${method.outputType.scalaType}] =
-         |  $grpcMethodDescriptor.newBuilder()
-         |    .setType($grpcMethodDescriptor.MethodType.$methodType)
-         |    .setFullMethodName($grpcMethodDescriptor.generateFullMethodName("${service.getFullName}", "${method.getName}"))
-         |    .setSampledToLocalTracing(true)
-         |    .setRequestMarshaller(${marshaller(method.inputType)})
-         |    .setResponseMarshaller(${marshaller(method.outputType)})
-         |    .setSchemaDescriptor(_root_.scalapb.grpc.ConcreteProtoMethodDescriptorSupplier.fromMethodDescriptor(${method.javaDescriptorSource}))
-         |    .build()
-         |""".stripMargin
+        |  $grpcMethodDescriptor.newBuilder()
+        |    .setType($grpcMethodDescriptor.MethodType.$methodType)
+        |    .setFullMethodName($grpcMethodDescriptor.generateFullMethodName("${service.getFullName}", "${method.getName}"))
+        |    .setSampledToLocalTracing(true)
+        |    .setRequestMarshaller(${marshaller(method.inputType)})
+        |    .setResponseMarshaller(${marshaller(method.outputType)})
+        |    .setSchemaDescriptor(_root_.scalapb.grpc.ConcreteProtoMethodDescriptorSupplier.fromMethodDescriptor(${method.javaDescriptorSource}))
+        |    .build()
+        |""".stripMargin
     )
   }
 
@@ -94,6 +92,7 @@ class GrpcServicePrinter(
 
   private[this] val serviceName = service.name
   private[this] val serviceNameMonix = s"$serviceName$serviceSuffix"
+  private[this] val clientNameMonix = s"$serviceName${serviceSuffix}Stub"
   private[this] val servicePkgName = service.getFile.scalaPackage.fullName
 
   def printService(printer: FunctionalPrinter): FunctionalPrinter = {
@@ -108,8 +107,6 @@ class GrpcServicePrinter(
       .add(s"object $serviceNameMonix {")
       .indent
       .newline
-      .call(generateClientStub)
-      .newline
       .call(generateClientDefinition)
       .newline
       .call(generateBindService)
@@ -121,35 +118,31 @@ class GrpcServicePrinter(
       .add("}")
   }
 
-  private def generateClientStub: PrinterEndo = p => {
-    p.add(
-      s"def stub(channel: ${defs.Channel}, callOptions: ${defs.CallOptions} /*= ${defs.CallOptions}.DEFAULT*/)(implicit scheduler: ${defs.Scheduler}): $serviceNameMonix = {"
-    ).indent
-      .add(s"client(channel, _ => callOptions)")
-      .outdent
-      .add("}")
-  }
+  val callOptions = "callOptions"
 
   private def generateClientDefinition: PrinterEndo = p => {
     def methodImpl(method: MethodDescriptor) = { (p: FunctionalPrinter) =>
-      val deferOwner =
-        if (method.isServerStreaming) s"${defs.ObservableOps}"
-        else defs.Task
+      val defer =
+        if (method.isServerStreaming) s"${defs.Observable}.fromTask($callOptions).flatMap{ co =>"
+        else s"$callOptions.flatMap{ co =>"
       p.add(
-        serviceMethodSignature(method) + s" = ${deferOwner}.deferAction { implicit scheduler =>"
+        serviceMethodSignature(method) + s" = $defer"
       ).indent
-        .add(
-          s"val call = ${defs.ClientCall}(channel, ${grpcDescriptor(method).fullName}, processOpts(${defs.CallOptions}.DEFAULT))"
-        )
-        .add(s"call.${handleMethod(method)}(request, metadata)")
+        .add(s"${defs.ClientCall}(channel, ${grpcDescriptor(method).fullName}, co)")
+        .indent
+        .add(s".${handleMethod(method)}(request, metadata)")
+        .outdent
         .outdent
         .add("}")
     }
 
     p.add(
-      s"def client(channel: ${defs.Channel}, processOpts: ${defs.CallOptions} => ${defs.CallOptions} = identity)(implicit scheduler: ${defs.Scheduler}): $serviceNameMonix = new $serviceNameMonix {"
+      s"class $clientNameMonix(channel: ${defs.Channel}, callOptions: ${defs.Task}[${defs.CallOptions}] = ${defs.Task}(${defs.CallOptions}.DEFAULT))(implicit scheduler: ${defs.Scheduler}) extends $serviceNameMonix with _root_.monix.grpc.runtime.client.CallOptionsMethods[$clientNameMonix]{"
     ).indent
       .call(service.methods.map(methodImpl): _*)
+      .add(
+        s"override def mapCallOptions(f: ${defs.CallOptions} => ${defs.Task}[${defs.CallOptions}]): $clientNameMonix = new $clientNameMonix(channel, $callOptions.flatMap(f))"
+      )
       .outdent
       .add("}")
   }

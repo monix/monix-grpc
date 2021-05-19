@@ -1,11 +1,9 @@
 package monix.grpc.runtime.client
 
 import munit.FunSuite
-
 import io.grpc
 import io.grpc.ClientCall.Listener
-import io.grpc.{Metadata, Status}
-
+import io.grpc.{CallOptions, Metadata, Status}
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
 import monix.execution.atomic.AtomicBoolean
@@ -17,11 +15,14 @@ import scala.concurrent.Promise
 import scala.concurrent.duration.DurationInt
 
 class ClientCallTest extends FunSuite {
+  
+  Observable.fromTask(Task(Observable(1))).flatten
   test(
     "unaryToUnaryCall should not start the call unless the response is consumed"
   ) {
     val mock = new ClientCallMock[Int, Int]()
-    val call = new ClientCall[Int, Int](mock).unaryToUnaryCall(1, new Metadata())
+    val callOptions = CallOptions.DEFAULT
+    val call = new ClientCall[Int, Int](mock, callOptions).unaryToUnaryCall(1, new Metadata())
     assertEquals(mock.hasStarted.get(), false)
   }
 
@@ -30,7 +31,7 @@ class ClientCallTest extends FunSuite {
   ) {
     val mock = new ClientCallMock[Int, Int]()
     val test = for {
-      received <- new ClientCall[Int, Int](mock).unaryToUnaryCall(1, new Metadata()).start
+      received <- new ClientCall[Int, Int](mock, CallOptions.DEFAULT).unaryToUnaryCall(1, new Metadata()).start
       listener <- mock.listener
       amountRequested <- mock.requestAmount.firstL
       messageSend <- mock.sendMessages.firstL
@@ -41,7 +42,7 @@ class ClientCallTest extends FunSuite {
       assertEquals(amountRequested, 2)
       assertEquals(messageSend, 1)
       assertEquals(response, 2)
-      assert(mock.halfClosed.get)
+      assert(mock.halfClosed.get())
     }
     test.runToFuture
   }
@@ -51,7 +52,7 @@ class ClientCallTest extends FunSuite {
   ) {
     val mock = new ClientCallMock[Int, Int]()
     val result = for {
-      received <- new ClientCall[Int, Int](mock).unaryToUnaryCall(1, new Metadata()).start
+      received <- new ClientCall[Int, Int](mock, CallOptions.DEFAULT).unaryToUnaryCall(1, new Metadata()).start
       listener <- mock.listener
       _ = listener.onMessage(2)
       _ = listener.onMessage(3)
@@ -71,7 +72,7 @@ class ClientCallTest extends FunSuite {
     "streamingToUnaryCall should not start the call unless the response is consumed"
   ) {
     val mock = new ClientCallMock[Int, Int]()
-    val call = new ClientCall[Int, Int](mock).streamingToUnaryCall(Observable(1), new Metadata())
+    val call = new ClientCall[Int, Int](mock, CallOptions.DEFAULT).streamingToUnaryCall(Observable(1), new Metadata())
     assertEquals(mock.hasStarted.get(), false)
   }
 
@@ -79,7 +80,7 @@ class ClientCallTest extends FunSuite {
     "streamingToStreamingCall first start the call before interacting with the call"
   ) {
     val mock = new ClientCallMock[Int, Int]()
-    val received = new ClientCall[Int, Int](mock)
+    val received = new ClientCall[Int, Int](mock, CallOptions.DEFAULT)
       .streamingToStreamingCall(Observable(1, 2), new Metadata())
       .toListL
       .runToFuture
@@ -107,7 +108,7 @@ class ClientCallTest extends FunSuite {
     "unaryToStreamingCall first start the call before interacting with the call"
   ) {
     val mock = new ClientCallMock[Int, Int]()
-    val received = new ClientCall[Int, Int](mock)
+    val received = new ClientCall[Int, Int](mock, CallOptions.DEFAULT)
       .unaryToStreamingCall(1, new Metadata())
       .toListL
       .runToFuture
