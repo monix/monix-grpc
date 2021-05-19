@@ -1,39 +1,42 @@
 package scalapb.monix.grpc.testservice
 
 import io.grpc
-import com.typesafe.scalalogging.Logger
 
 import scala.concurrent.blocking
 import scala.concurrent.duration.FiniteDuration
 import monix.eval.Task
 import monix.execution.CancelableFuture
 import cats.effect.Resource
+
 import java.util.concurrent.TimeUnit
 import monix.execution.Scheduler
 import io.grpc.netty.NettyServerBuilder
-import com.typesafe.scalalogging.LazyLogging
 import io.grpc.inprocess.InProcessServerBuilder
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.CallOptions
+
 import java.util.UUID
 import monix.reactive.subjects.PublishSubject
 import monix.execution.CancelablePromise
 import cats.effect.ExitCase
 import monix.reactive.Observable
 import io.grpc.netty.NettyChannelBuilder
+import org.slf4j.{Logger, LoggerFactory}
 
-abstract class GrpcBaseSpec extends munit.FunSuite with LazyLogging {
+abstract class GrpcBaseSpec extends munit.FunSuite {
+  private val logger: Logger = LoggerFactory.getLogger(this.getClass)
+
   final class GrpcTestState(
       val stub: TestServiceApi,
       private[this] val grpcServer: grpc.Server,
       private[this] val grpcChannel: grpc.ManagedChannel
-  ) {
+    ) {
 
     def withClientStream(
         sendRequests: ClientStream[Request] => Task[Unit]
-    )(
+      )(
         receiveResponses: Observable[Request] => Task[Unit]
-    ): Task[Unit] = {
+      ): Task[Unit] = {
       val subscribed = CancelablePromise[Unit]()
       val subject = PublishSubject[Request]()
       val stream = new ClientStream[Request](subject)
@@ -74,14 +77,22 @@ abstract class GrpcBaseSpec extends munit.FunSuite with LazyLogging {
   implicit val scheduler: Scheduler = Scheduler.Implicits.global
   implicit val taskCtx: Task.Options = Task.defaultOptions.enableLocalContextPropagation
 
-  def testGrpc[T](name: String)(
+  def testGrpc[T](
+      name: String
+    )(
       body: GrpcTestState => Any
-  )(implicit loc: munit.Location): Unit =
+    )(
+      implicit loc: munit.Location
+    ): Unit =
     testGrpc(name: munit.TestOptions)(body)
 
-  def testGrpc[T](opts: munit.TestOptions)(
+  def testGrpc[T](
+      opts: munit.TestOptions
+    )(
       body: GrpcTestState => Any
-  )(implicit loc: munit.Location): Unit = {
+    )(
+      implicit loc: munit.Location
+    ): Unit = {
     val stateResource = serverResource(defaultPort).flatMap { server =>
       channelResource(defaultPort).map { channel =>
         val stub = TestServiceApi.stub(channel, CallOptions.DEFAULT)
@@ -91,7 +102,7 @@ abstract class GrpcBaseSpec extends munit.FunSuite with LazyLogging {
 
     test(opts) {
       val setupTimeout = FiniteDuration(3, TimeUnit.SECONDS)
-      val totalTimeout = FiniteDuration(munitTimeout._1, munitTimeout._2)
+      val totalTimeout = munitTimeout
       val minimumTimeout = setupTimeout + setupTimeout
       assert(totalTimeout >= minimumTimeout, s"Minimum allowed munit timeout is $minimumTimeout!")
       val testCaseTimeout = totalTimeout.-(setupTimeout)
@@ -99,9 +110,12 @@ abstract class GrpcBaseSpec extends munit.FunSuite with LazyLogging {
     }
   }
 
-  private def serverResource(port: Int)(implicit
+  private def serverResource(
+      port: Int
+    )(
+      implicit
       scheduler: Scheduler
-  ): Resource[Task, grpc.Server] = Resource {
+    ): Resource[Task, grpc.Server] = Resource {
     val service = TestServiceApi.bindService(new TestService(logger))
     //val server = NettyServerBuilder.forPort(port).addService(service).build()
     val server = InProcessServerBuilder.forName(testId).addService(service).build()
@@ -110,9 +124,12 @@ abstract class GrpcBaseSpec extends munit.FunSuite with LazyLogging {
     Task(server.start() -> Task(blocking(server.shutdownNow())).void.guarantee(waitForTermination))
   }
 
-  private def channelResource(port: Int)(implicit
+  private def channelResource(
+      port: Int
+    )(
+      implicit
       scheduler: Scheduler
-  ): Resource[Task, grpc.ManagedChannel] = Resource {
+    ): Resource[Task, grpc.ManagedChannel] = Resource {
     Task {
       val channel = InProcessChannelBuilder.forName(testId).build()
       //val channel = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()

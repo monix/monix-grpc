@@ -1,7 +1,6 @@
 package scalapb.monix.grpc.testservice
 
 import munit.Location
-import com.typesafe.scalalogging.LazyLogging
 import io.grpc.{Metadata, Server, StatusRuntimeException}
 import monix.eval.Task
 import monix.reactive.subjects.{PublishSubject, ReplaySubject, Subject}
@@ -237,10 +236,13 @@ class TestServiceSpec extends GrpcBaseSpec {
     def expectResponseValue(expected: Int)(implicit v: T =:= Response): Task[Unit] =
       t.map(v.apply(_)).map(r => assertEquals(r.out, expected))
 
-    def expectDiff(expected: String)(implicit
+    def expectDiff(
+        expected: String
+      )(
+        implicit
         v: T <:< List[_],
         loc: Location
-    ): Task[Unit] = t.map { value =>
+      ): Task[Unit] = t.map { value =>
       val obtained = value.mkString(System.lineSeparator())
       assertNoDiff(obtained, expected)
     }

@@ -1,6 +1,5 @@
 package scalapb.monix.grpc.testservice
 
-import com.typesafe.scalalogging.{LazyLogging, Logger}
 import io.grpc._
 import monix.eval.Task
 import monix.reactive.Observable
@@ -9,6 +8,7 @@ import scalapb.monix.grpc.testservice.Request.Scenario
 import java.time.Instant
 import scala.concurrent.duration.{DurationInt, SECONDS}
 import scala.util.Random
+import org.slf4j.{Logger}
 
 class TestService(logger: Logger) extends TestServiceApi {
   override def unary(request: Request, ctx: Metadata): Task[Response] = {

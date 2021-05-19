@@ -1,6 +1,5 @@
 package scalapb.monix.grpc.testservice
 
-import com.typesafe.scalalogging.LazyLogging
 import io.grpc.Metadata
 import monix.eval.Task
 import monix.execution.Scheduler.Implicits.global
@@ -22,7 +21,12 @@ class BackpressureSpec extends GrpcBaseSpec {
     state.withClientStream(sendRequests(100, Scenario.SLOW, _)) { clientRequests0 =>
       val events = new mutable.ListBuffer[Long]()
       val clientRequests = clientRequests0
-        .doOnNext(_ => Task(events.+=(Instant.now().toEpochMilli())))
+        .doOnNext(_ =>
+          Task {
+            events.+=(Instant.now().toEpochMilli())
+            events
+          }
+        )
 
       state.stub.bidiStreaming(clientRequests).completedL.map { _ =>
         assertBackpressureFromTimestamps(100, events.toList)
@@ -66,7 +70,7 @@ class BackpressureSpec extends GrpcBaseSpec {
       count: Int,
       scenario: Scenario,
       stream: ClientStream[Request]
-  ): Task[Unit] = Observable
+    ): Task[Unit] = Observable
     .range(1, count + 1)
     .mapEval(_ => stream.onNextL(generateRequest(1, scenario), 0))
     .completedL
@@ -79,7 +83,9 @@ class BackpressureSpec extends GrpcBaseSpec {
   private def assertBackpressureFromTimestamps(
       expectedCount: Int,
       obtainedTimestamps: Seq[Long]
-  )(implicit loc: munit.Location): Unit = {
+    )(
+      implicit loc: munit.Location
+    ): Unit = {
     assertEquals(obtainedTimestamps.size, expectedCount)
     val average = obtainedTimestamps.iterator
       .sliding(2)

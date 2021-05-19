@@ -1,11 +1,12 @@
-val Scala213 = "2.13.4"
-val Scala212 = "2.12.12"
+import Dependencies._
 
 ThisBuild / scalaVersion := Scala212
 
 inThisBuild(
   List(
     resolvers += Resolver.sonatypeRepo("snapshots"),
+    resolvers += Resolver.mavenCentral,
+
     organization := "me.vican.jorge",
     homepage := Some(url("https://github.com/jvican/dijon")),
     licenses := Seq("Apache-2.0" -> url("http://www.apache.org/licenses/LICENSE-2.0")),
@@ -31,24 +32,18 @@ val releaseSettings = List(
   publishTo := sonatypePublishToBundle.value
 )
 
-lazy val grpcRuntime = project
+lazy val grpcRuntime = projectMatrix
+  .jvmPlatform(scalaVersions = scalaVersions)
   .in(file("grpc-runtime"))
   .settings(releaseSettings)
   .settings(
     name := "monix-grpc-runtime",
-    crossScalaVersions := List("2.12.12", "2.13.3"),
     testFrameworks += new TestFramework("munit.Framework"),
-    libraryDependencies ++= List(
-      "io.grpc" % "grpc-api" % "1.36.0",
-      "io.monix" %% "monix" % "3.2.2",
-      "com.thesamet.scalapb" %% "scalapb-runtime" % "0.10.9",
-      "io.grpc" % "grpc-stub" % "1.36.0" % Test,
-      "io.grpc" % "grpc-protobuf" % "1.36.0" % Test,
-      "org.scalameta" %% "munit" % "0.7.22" % Test
-    )
+    libraryDependencies ++= grpcDepenencies ++ munit ++ monix
   )
 
 lazy val grpcCodeGen = projectMatrix
+  .jvmPlatform(scalaVersions = scalaVersions)
   .in(file("grpc-codegen"))
   .defaultAxes()
   .enablePlugins(BuildInfoPlugin)
@@ -62,7 +57,7 @@ lazy val grpcCodeGen = projectMatrix
       "com.thesamet.scalapb" %% "compilerplugin" % scalapb.compiler.Version.scalapbVersion
     )
   )
-  .jvmPlatform(scalaVersions = Seq(Scala212, Scala213))
+
 
 lazy val codeGenJVM212 = grpcCodeGen.jvm(Scala212)
 
@@ -73,27 +68,20 @@ lazy val protocGenMonixGrpc = protocGenProject("protoc-gen-monix-grpc", codeGenJ
     Compile / mainClass := Some("monix.grpc.codegen.GrpcCodeGenerator")
   )
 
-lazy val e2e = project
+lazy val e2e = projectMatrix
+  .jvmPlatform(scalaVersions = scalaVersions)
   .in(file("e2e"))
   .dependsOn(grpcRuntime)
   .enablePlugins(LocalCodeGenPlugin)
   .settings(
-    crossScalaVersions := Seq("2.12.12", "2.13.3"),
-    skip in publish := true,
-    libraryDependencies ++= Seq(
-      "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion,
-      "io.grpc" % "grpc-netty" % "1.36.0",
-      "org.scalameta" %% "munit" % "0.7.22",
-      "com.typesafe.scala-logging" %% "scala-logging" % "3.9.2",
-      "org.slf4j" % "slf4j-api" % "1.7.30",
-      "org.apache.logging.log4j" % "log4j-slf4j-impl" % "2.13.3"
-    ),
+    publish / skip := true,
+    libraryDependencies ++= grpcDepenencies ++ munit ++ monix ++ logging,
     testFrameworks += new TestFramework("munit.Framework"),
-    PB.targets in Compile := Seq(
-      scalapb.gen(grpc = false) -> (sourceManaged in Compile).value,
+    Compile / PB.targets := Seq(
+      scalapb.gen(grpc = false) -> (Test / sourceManaged ).value,
       genModule(
         "monix.grpc.codegen.GrpcCodeGenerator$"
-      ) -> (sourceManaged in Compile).value
+      ) -> ( Test / sourceManaged).value
     ),
     PB.protocVersion := "3.13.0",
     codeGenClasspath := (codeGenJVM212 / Compile / fullClasspath).value
