@@ -15,7 +15,7 @@ import scala.concurrent.Promise
 import scala.concurrent.duration.DurationInt
 
 class ClientCallTest extends FunSuite {
-  
+
   Observable.fromTask(Task(Observable(1))).flatten
   test(
     "unaryToUnaryCall should not start the call unless the response is consumed"
@@ -31,7 +31,9 @@ class ClientCallTest extends FunSuite {
   ) {
     val mock = new ClientCallMock[Int, Int]()
     val test = for {
-      received <- new ClientCall[Int, Int](mock, CallOptions.DEFAULT).unaryToUnaryCall(1, new Metadata()).start
+      received <- new ClientCall[Int, Int](mock, CallOptions.DEFAULT)
+        .unaryToUnaryCall(1, new Metadata())
+        .start
       listener <- mock.listener
       amountRequested <- mock.requestAmount.firstL
       messageSend <- mock.sendMessages.firstL
@@ -52,7 +54,9 @@ class ClientCallTest extends FunSuite {
   ) {
     val mock = new ClientCallMock[Int, Int]()
     val result = for {
-      received <- new ClientCall[Int, Int](mock, CallOptions.DEFAULT).unaryToUnaryCall(1, new Metadata()).start
+      received <- new ClientCall[Int, Int](mock, CallOptions.DEFAULT)
+        .unaryToUnaryCall(1, new Metadata())
+        .start
       listener <- mock.listener
       _ = listener.onMessage(2)
       _ = listener.onMessage(3)
@@ -72,7 +76,8 @@ class ClientCallTest extends FunSuite {
     "streamingToUnaryCall should not start the call unless the response is consumed"
   ) {
     val mock = new ClientCallMock[Int, Int]()
-    val call = new ClientCall[Int, Int](mock, CallOptions.DEFAULT).streamingToUnaryCall(Observable(1), new Metadata())
+    val call = new ClientCall[Int, Int](mock, CallOptions.DEFAULT)
+      .streamingToUnaryCall(Observable(1), new Metadata())
     assertEquals(mock.hasStarted.get(), false)
   }
 
@@ -99,17 +104,17 @@ class ClientCallTest extends FunSuite {
       response <- received
     } yield {
       assertEquals(response, List(3, 4))
-      assertEquals(amountRequested, List(1, 1, 1))
+      assertEquals(amountRequested, List(CallOptionsMethods.receiveBufferSize.getDefault, 1, 1))
       assertEquals(messageSend, List(1, 2))
     }
   }
 
   test(
-    "unaryToStreamingCall first start the call before interacting with the call"
+    "streamingToStreamingCall first start the call before interacting with the call"
   ) {
     val mock = new ClientCallMock[Int, Int]()
     val received = new ClientCall[Int, Int](mock, CallOptions.DEFAULT)
-      .unaryToStreamingCall(1, new Metadata())
+      .streamingToStreamingCall(Observable(1, 2), new Metadata())
       .toListL
       .runToFuture
 
@@ -127,9 +132,72 @@ class ClientCallTest extends FunSuite {
       response <- received
     } yield {
       assertEquals(response, List(3, 4))
-      assertEquals(amountRequested, List(1, 1, 1))
+      assertEquals(amountRequested, List(CallOptionsMethods.receiveBufferSize.getDefault, 1, 1))
+      assertEquals(messageSend, List(1, 2))
+    }
+  }
+
+  test(
+    "unaryToStreamingCall will use the configured receive buffer size as the initial request"
+  ) {
+    val mock = new ClientCallMock[Int, Int]()
+    val received =
+      new ClientCall[Int, Int](
+        mock,
+        CallOptions.DEFAULT.withOption(CallOptionsMethods.receiveBufferSize, 10)
+      )
+        .unaryToStreamingCall(1, new Metadata())
+        .toListL
+        .runToFuture
+
+    val futureAmountRequested = mock.requestAmount.toListL.runToFuture
+    val futureMessageSend = mock.sendMessages.toListL.runToFuture
+
+    for {
+      listener <- mock.listener.runToFuture
+      _ = listener.onMessage(3)
+      _ = listener.onMessage(4)
+      _ = listener.onClose(Status.OK, new Metadata())
+      _ <- mock.complete().runToFuture
+      amountRequested <- futureAmountRequested
+      messageSend <- futureMessageSend
+      response <- received
+    } yield {
+      assertEquals(response, List(3, 4))
+      assertEquals(amountRequested, List(10, 1, 1))
       assertEquals(messageSend, List(1))
     }
   }
 
+  test(
+    "unaryToStreamingCall will use the configured receive buffer size as the initial request"
+  ) {
+    val mock = new ClientCallMock[Int, Int]()
+    val received =
+      new ClientCall[Int, Int](
+        mock,
+        CallOptions.DEFAULT.withOption(CallOptionsMethods.receiveBufferSize, 10)
+      )
+        .unaryToStreamingCall(1, new Metadata())
+        .toListL
+        .runToFuture
+
+    val futureAmountRequested = mock.requestAmount.toListL.runToFuture
+    val futureMessageSend = mock.sendMessages.toListL.runToFuture
+
+    for {
+      listener <- mock.listener.runToFuture
+      _ = listener.onMessage(3)
+      _ = listener.onMessage(4)
+      _ = listener.onClose(Status.OK, new Metadata())
+      _ <- mock.complete().runToFuture
+      amountRequested <- futureAmountRequested
+      messageSend <- futureMessageSend
+      response <- received
+    } yield {
+      assertEquals(response, List(3, 4))
+      assertEquals(amountRequested, List(10, 1, 1))
+      assertEquals(messageSend, List(1))
+    }
+  }
 }

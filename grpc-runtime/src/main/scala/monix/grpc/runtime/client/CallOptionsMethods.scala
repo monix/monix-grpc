@@ -8,22 +8,26 @@ import scala.concurrent.duration._
 
 trait CallOptionsMethods[Repr] {
   def mapCallOptions(f: CallOptions => Task[CallOptions]): Repr
-  
+
   def withCallOptions(callOptions: CallOptions): Repr = mapCallOptions(_ => Task(callOptions))
 
   def withDeadline(deadline: Deadline): Repr = mapCallOptions(co => Task(co.withDeadline(deadline)))
-  
+
   def withTimeout(duration: Duration): Repr =
     mapCallOptions(co => Task(co.withDeadlineAfter(duration.toNanos, TimeUnit.NANOSECONDS)))
 
   def withTimeoutMillis(millis: Long): Repr = withTimeout(millis.millis)
 
-  def withBufferSize(numberOfMessages: Int) =
+  def withReceivingBufferSize(numberOfMessages: Int) =
     mapCallOptions(co =>
-      Task(co.withOption[Int](CallOptions.Key.createWithDefault("clientBufferSize", 1000), numberOfMessages))
+      Task(co.withOption[Int](CallOptionsMethods.receiveBufferSize, numberOfMessages))
     )
 
-  def customOption[T](key: CallOptions.Key[T], value: T) = {
+  def customOption[T](key: CallOptions.Key[T], value: T) =
     mapCallOptions(co => Task(co.withOption(key, value)))
-  }
+}
+
+object CallOptionsMethods {
+  val receiveBufferSize: CallOptions.Key[Int] =
+    CallOptions.Key.createWithDefault("monixClientBufferSize", 1000)
 }

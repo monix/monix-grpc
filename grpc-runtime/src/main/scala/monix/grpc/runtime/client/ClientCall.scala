@@ -14,12 +14,14 @@ import monix.eval.Fiber
 class ClientCall[Request, Response] private[client] (
     val call: grpc.ClientCall[Request, Response],
     callOptions: grpc.CallOptions
-  ) {
+) {
+
+  def bufferSize = callOptions.getOption(CallOptionsMethods.receiveBufferSize)
 
   def unaryToUnaryCall(
       message: Request,
       headers: grpc.Metadata
-    ): Task[Response] = Task.defer {
+  ): Task[Response] = Task.defer {
     val listener = ClientCallListeners.unary[Response]
     val makeCall = for {
       _ <- start(listener, headers)
@@ -41,14 +43,13 @@ class ClientCall[Request, Response] private[client] (
   def unaryToStreamingCall(
       message: Request,
       headers: grpc.Metadata
-    )(
-      implicit
+  )(implicit
       scheduler: Scheduler
-    ): Observable[Response] = Observable.defer {
+  ): Observable[Response] = Observable.defer {
     val listener = ClientCallListeners.streaming[Response](request)
     val startCall = for {
       _ <- start(listener, headers)
-      _ <- request(1)
+      _ <- request(bufferSize)
       _ <- sendMessage(message).guaranteeCase {
         case ExitCase.Completed => halfClose
         case ExitCase.Error(e) =>
@@ -70,7 +71,7 @@ class ClientCall[Request, Response] private[client] (
   def streamingToUnaryCall(
       messages: Observable[Request],
       headers: grpc.Metadata
-    ): Task[Response] = Task.defer {
+  ): Task[Response] = Task.defer {
     val listener = ClientCallListeners.unary[Response]
     val makeCall = for {
       _ <- start(listener, headers)
@@ -108,7 +109,7 @@ class ClientCall[Request, Response] private[client] (
   private def sendStreamingRequests(
       requests: Observable[Request],
       onReady: AsyncVar[Unit]
-    ): Task[Either[Throwable, Unit]] = {
+  ): Task[Either[Throwable, Unit]] = {
     def sendMessageWhenReady(request: Request): Task[Unit] =
       // Don't send message until the `onReady` async var is full and the call is ready
       Task.deferFuture(onReady.take()).restartUntil(_ => call.isReady).>>(sendMessage(request))
@@ -130,16 +131,15 @@ class ClientCall[Request, Response] private[client] (
   def streamingToStreamingCall(
       requests: Observable[Request],
       headers: grpc.Metadata
-    )(
-      implicit
+  )(implicit
       scheduler: Scheduler
-    ): Observable[Response] = Observable.defer {
+  ): Observable[Response] = Observable.defer {
     val listener = ClientCallListeners.streaming[Response](request)
 
     val makeCall = start(listener, headers).>> {
       sendStreamingRequests(requests, listener.onReadyEffect).start.map { sendRequestsFiber =>
         listener.incomingResponses
-          .doAfterSubscribe(request(1))
+          .doAfterSubscribe(request(bufferSize))
           .doOnNext(_ => request(1))
           .onErrorRecoverWith { case ClientCall.CancelledWithoutCause(serverCallError) =>
             Observable.fromTask(rethrowWithClientCauseIfError(serverCallError, sendRequestsFiber))
@@ -187,7 +187,7 @@ class ClientCall[Request, Response] private[client] (
   private def rethrowWithClientCauseIfError(
       err: StatusRuntimeException,
       fiber: Fiber[Either[Throwable, Unit]]
-    ): Task[Nothing] = fiber.join
+  ): Task[Nothing] = fiber.join
     .timeoutTo(FiniteDuration(50, TimeUnit.MILLISECONDS), Task(Right(())))
     .flatMap {
       case Left(clientCallError: Throwable) =>
@@ -199,16 +199,16 @@ class ClientCall[Request, Response] private[client] (
   private def start(
       listener: grpc.ClientCall.Listener[Response],
       headers: grpc.Metadata
-    ): Task[Unit] = Task(call.start(listener, headers))
+  ): Task[Unit] = Task(call.start(listener, headers))
 
   /**
-    * Asks for two messages even though we expect only one so that if a
-    * misbehaving client sends more than one response in a unary call we catch
-    * the contract violation and fail right away.
-    *
-    * @note This is a trick employed by the official grpc-java, check the
-    *  source if you want to learn more.
-    */
+   * Asks for two messages even though we expect only one so that if a
+   * misbehaving client sends more than one response in a unary call we catch
+   * the contract violation and fail right away.
+   *
+   * @note This is a trick employed by the official grpc-java, check the
+   *  source if you want to learn more.
+   */
   private def requestMessagesFromUnaryCall: Task[Unit] =
     request(2)
 
@@ -230,7 +230,7 @@ object ClientCall {
       channel: grpc.Channel,
       methodDescriptor: grpc.MethodDescriptor[Request, Response],
       callOptions: grpc.CallOptions
-    ): ClientCall[Request, Response] = {
+  ): ClientCall[Request, Response] = {
     new ClientCall(
       channel.newCall[Request, Response](methodDescriptor, callOptions),
       callOptions
