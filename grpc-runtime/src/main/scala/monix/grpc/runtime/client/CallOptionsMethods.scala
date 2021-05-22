@@ -9,22 +9,23 @@ import scala.concurrent.duration._
 trait CallOptionsMethods[Repr] {
   def mapCallOptions(f: CallOptions => Task[CallOptions]): Repr
 
-  def withCallOptions(callOptions: CallOptions): Repr = mapCallOptions(_ => Task(callOptions))
+  def withCallOptions(callOptions: CallOptions): Repr = mapCallOptions(_ => Task.now(callOptions))
 
-  def withDeadline(deadline: Deadline): Repr = mapCallOptions(co => Task(co.withDeadline(deadline)))
+  def withDeadline(deadline: Deadline): Repr =
+    mapCallOptions(co => Task.now(co.withDeadline(deadline)))
 
-  def withTimeout(duration: Duration): Repr =
-    mapCallOptions(co => Task(co.withDeadlineAfter(duration.toNanos, TimeUnit.NANOSECONDS)))
+  def withDeadline(duration: Duration): Repr =
+    mapCallOptions(co => Task.now(co.withDeadlineAfter(duration.toNanos, TimeUnit.NANOSECONDS)))
 
-  def withTimeoutMillis(millis: Long): Repr = withTimeout(millis.millis)
+  def withDeadlineMillis(millis: Long): Repr = withDeadline(millis.millis)
 
-  def withReceiveBufferSize(numberOfMessages: Int) =
+  def withReceiveBufferSize(numberOfMessages: Int): Repr =
     mapCallOptions(co =>
-      Task(co.withOption[Int](CallOptionsMethods.receiveBufferSize, numberOfMessages))
+      Task.now(co.withOption[Int](CallOptionsMethods.receiveBufferSize, numberOfMessages))
     )
 
-  def customOption[T](key: CallOptions.Key[T], value: T) =
-    mapCallOptions(co => Task(co.withOption(key, value)))
+  def customOption[T](key: CallOptions.Key[T], value: T): Repr =
+    mapCallOptions(co => Task.now(co.withOption(key, value)))
 }
 
 object CallOptionsMethods {
