@@ -16,7 +16,6 @@ import scala.concurrent.duration.DurationInt
 
 class ClientCallTest extends FunSuite {
 
-  Observable.fromTask(Task(Observable(1))).flatten
   test(
     "unaryToUnaryCall should not start the call unless the response is consumed"
   ) {
