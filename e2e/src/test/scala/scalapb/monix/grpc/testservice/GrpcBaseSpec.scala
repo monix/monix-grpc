@@ -74,17 +74,15 @@ abstract class GrpcBaseSpec extends munit.FunSuite with LazyLogging {
   implicit val scheduler: Scheduler = Scheduler.Implicits.global
   implicit val taskCtx: Task.Options = Task.defaultOptions.enableLocalContextPropagation
 
-  def testGrpc[T](name: String)(
-      body: GrpcTestState => Any
-  )(implicit loc: munit.Location): Unit =
+  def testGrpc[T](name: String)(body: GrpcTestState => Any)(implicit loc: munit.Location): Unit =
     testGrpc(name: munit.TestOptions)(body)
 
-  def testGrpc[T](opts: munit.TestOptions)(
-      body: GrpcTestState => Any
-  )(implicit loc: munit.Location): Unit = {
+  def testGrpc[T](
+      opts: munit.TestOptions
+  )(body: GrpcTestState => Any)(implicit loc: munit.Location): Unit = {
     val stateResource = serverResource(defaultPort).flatMap { server =>
       channelResource(defaultPort).map { channel =>
-        val stub = TestServiceApi.stub(channel, CallOptions.DEFAULT)
+        val stub = TestServiceApi.stub(channel)
         new GrpcTestState(stub, server, channel)
       }
     }
@@ -99,9 +97,9 @@ abstract class GrpcBaseSpec extends munit.FunSuite with LazyLogging {
     }
   }
 
-  private def serverResource(port: Int)(implicit
-      scheduler: Scheduler
-  ): Resource[Task, grpc.Server] = Resource {
+  private def serverResource(
+      port: Int
+  )(implicit scheduler: Scheduler): Resource[Task, grpc.Server] = Resource {
     val service = TestServiceApi.bindService(new TestService(logger))
     //val server = NettyServerBuilder.forPort(port).addService(service).build()
     val server = InProcessServerBuilder.forName(testId).addService(service).build()
@@ -110,9 +108,9 @@ abstract class GrpcBaseSpec extends munit.FunSuite with LazyLogging {
     Task(server.start() -> Task(blocking(server.shutdownNow())).void.guarantee(waitForTermination))
   }
 
-  private def channelResource(port: Int)(implicit
-      scheduler: Scheduler
-  ): Resource[Task, grpc.ManagedChannel] = Resource {
+  private def channelResource(
+      port: Int
+  )(implicit scheduler: Scheduler): Resource[Task, grpc.ManagedChannel] = Resource {
     Task {
       val channel = InProcessChannelBuilder.forName(testId).build()
       //val channel = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()

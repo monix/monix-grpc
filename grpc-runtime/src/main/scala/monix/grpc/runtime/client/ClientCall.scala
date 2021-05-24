@@ -5,13 +5,16 @@ import io.grpc
 import monix.eval.{Task, TaskLocal}
 import monix.execution.{AsyncVar, Scheduler}
 import monix.reactive.Observable
-import io.grpc.StatusRuntimeException
+import io.grpc.{CallOptions, StatusRuntimeException}
+
 import scala.concurrent.duration.FiniteDuration
 import java.util.concurrent.TimeUnit
 import monix.eval.Fiber
 
-class ClientCall[Request, Response] private[client] (val call: grpc.ClientCall[Request, Response])
-    extends AnyVal {
+class ClientCall[Request, Response] private[client] (
+    val call: grpc.ClientCall[Request, Response],
+    callOptions: grpc.CallOptions
+) {
 
   def unaryToUnaryCall(
       message: Request,
@@ -227,7 +230,8 @@ object ClientCall {
       callOptions: grpc.CallOptions
   ): ClientCall[Request, Response] = {
     new ClientCall(
-      channel.newCall[Request, Response](methodDescriptor, callOptions)
+      channel.newCall[Request, Response](methodDescriptor, callOptions),
+      callOptions
     )
   }
 
