@@ -43,7 +43,7 @@ object GrpcCodeGenerator extends CodeGenApp {
     file.getServices.asScala.map { service =>
       import implicits.{FileDescriptorPimp, ServiceDescriptorPimp}
 
-      val p = new GrpcServicePrinter(service, params.serviceSuffix, implicits)
+      val p = new GrpcServicePrinter(file, service, params.serviceSuffix, implicits)
       val code = p.printService(FunctionalPrinter()).result()
       val fileName = s"${file.scalaDirectory}/${service.name}${params.serviceSuffix}.scala"
 

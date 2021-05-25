@@ -1,10 +1,13 @@
 package monix.grpc.codegen
 
 import scalapb.compiler.FunctionalPrinter.PrinterEndo
-import com.google.protobuf.Descriptors.{MethodDescriptor, ServiceDescriptor}
+import com.google.protobuf.Descriptors.{FileDescriptor, MethodDescriptor, ServiceDescriptor}
 import scalapb.compiler.{DescriptorImplicits, FunctionalPrinter, NameUtils, PrinterEndo, StreamType}
 
+import scala.jdk.CollectionConverters._
+
 class GrpcServicePrinter(
+    file: FileDescriptor,
     service: ServiceDescriptor,
     serviceSuffix: String,
     implicits: DescriptorImplicits
@@ -97,6 +100,9 @@ class GrpcServicePrinter(
   def printService(printer: FunctionalPrinter): FunctionalPrinter = {
     printer
       .add(s"package $servicePkgName", "")
+      .print(file.scalaOptions.getImportList.asScala) { case (printer, i) =>
+        printer.add(s"import $i")
+      }
       .add(s"trait $serviceNameMonix {")
       .indent
       .seq(service.methods.map(serviceMethodSignature))
