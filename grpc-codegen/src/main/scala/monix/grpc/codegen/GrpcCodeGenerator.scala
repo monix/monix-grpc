@@ -41,7 +41,7 @@ object GrpcCodeGenerator extends CodeGenApp {
   ): Seq[CodeGeneratorResponse.File] = {
     import scala.jdk.CollectionConverters._
     file.getServices.asScala.map { service =>
-      import implicits.{FileDescriptorPimp, ServiceDescriptorPimp}
+      import implicits._
 
       val p = new GrpcServicePrinter(service, params.serviceSuffix, implicits)
       val code = p.printService(FunctionalPrinter()).result()
