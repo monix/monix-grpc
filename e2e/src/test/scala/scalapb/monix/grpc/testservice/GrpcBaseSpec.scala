@@ -1,28 +1,21 @@
 package scalapb.monix.grpc.testservice
 
+import cats.effect.{ExitCase, Resource}
 import io.grpc
-import com.typesafe.scalalogging.Logger
+import io.grpc.inprocess.{InProcessChannelBuilder, InProcessServerBuilder}
+import monix.eval.Task
+import monix.execution.{CancelableFuture, CancelablePromise, Scheduler}
+import monix.reactive.Observable
+import monix.reactive.subjects.PublishSubject
+import org.slf4j.{Logger, LoggerFactory}
 
+import java.util.UUID
+import java.util.concurrent.TimeUnit
 import scala.concurrent.blocking
 import scala.concurrent.duration.FiniteDuration
-import monix.eval.Task
-import monix.execution.CancelableFuture
-import cats.effect.Resource
-import java.util.concurrent.TimeUnit
-import monix.execution.Scheduler
-import io.grpc.netty.NettyServerBuilder
-import com.typesafe.scalalogging.LazyLogging
-import io.grpc.inprocess.InProcessServerBuilder
-import io.grpc.inprocess.InProcessChannelBuilder
-import io.grpc.CallOptions
-import java.util.UUID
-import monix.reactive.subjects.PublishSubject
-import monix.execution.CancelablePromise
-import cats.effect.ExitCase
-import monix.reactive.Observable
-import io.grpc.netty.NettyChannelBuilder
 
-abstract class GrpcBaseSpec extends munit.FunSuite with LazyLogging {
+abstract class GrpcBaseSpec extends munit.FunSuite {
+  private val logger: Logger = LoggerFactory.getLogger(this.getClass)
   final class GrpcTestState(
       val stub: TestServiceApi,
       private[this] val grpcServer: grpc.Server,
@@ -46,7 +39,7 @@ abstract class GrpcBaseSpec extends munit.FunSuite with LazyLogging {
       } yield result
 
       startSendingRequests.start.flatMap { sendFiber =>
-        val requests = subject.doAfterSubscribe(Task(subscribed.success(())))
+        val requests = subject.doAfterSubscribe(Task(subscribed.success(())).void)
         receiveResponses(requests).guaranteeCase {
           case ExitCase.Completed => sendFiber.join
           case ExitCase.Canceled => sendFiber.cancel
@@ -89,7 +82,7 @@ abstract class GrpcBaseSpec extends munit.FunSuite with LazyLogging {
 
     test(opts) {
       val setupTimeout = FiniteDuration(3, TimeUnit.SECONDS)
-      val totalTimeout = FiniteDuration(munitTimeout._1, munitTimeout._2)
+      val totalTimeout = FiniteDuration(munitTimeout.toNanos, TimeUnit.NANOSECONDS)
       val minimumTimeout = setupTimeout + setupTimeout
       assert(totalTimeout >= minimumTimeout, s"Minimum allowed munit timeout is $minimumTimeout!")
       val testCaseTimeout = totalTimeout.-(setupTimeout)
@@ -115,7 +108,7 @@ abstract class GrpcBaseSpec extends munit.FunSuite with LazyLogging {
       val channel = InProcessChannelBuilder.forName(testId).build()
       //val channel = NettyChannelBuilder.forAddress("localhost", port).usePlaintext().build()
       val closeChannel = Task(blocking(channel.shutdownNow())).void
-        .guarantee(Task(blocking(channel.awaitTermination(1, TimeUnit.SECONDS))))
+        .guarantee(Task(blocking(channel.awaitTermination(1, TimeUnit.SECONDS))).void)
         .onErrorHandle(err => logger.error(s"Timed out to close grpc client after 1s!", err))
       channel -> closeChannel
     }

@@ -1,7 +1,6 @@
 package scalapb.monix.grpc.testservice
 
 import munit.Location
-import com.typesafe.scalalogging.LazyLogging
 import io.grpc.{Metadata, Server, StatusRuntimeException}
 import monix.eval.Task
 import monix.reactive.subjects.{PublishSubject, ReplaySubject, Subject}

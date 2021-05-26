@@ -30,7 +30,7 @@ class ServerCallTest extends FunSuite {
   }
 
   test("requests new elements as they are being processed") {
-    val mock = ServerCallMock[Int, Int]
+    val mock = ServerCallMock[Int, Int]()
     val testSubscriber = TestSubscriber[Int](false)
     val listener =
       new StreamingCallListener[Int, Int](
@@ -71,7 +71,7 @@ class ServerCallTest extends FunSuite {
   }
 
   test("onReadyEffect is triggered onReady") {
-    val mock = ServerCallMock[Int, Int]
+    val mock = ServerCallMock[Int, Int]()
     val listener =
       new StreamingCallListener[Int, Int](
         ServerCall(mock, ServerCallOptions.default),
@@ -85,7 +85,7 @@ class ServerCallTest extends FunSuite {
   }
 
   test("rpc call is cancelled successfully") {
-    val mock = ServerCallMock[Int, Int]
+    val mock = ServerCallMock[Int, Int]()
     val listener =
       new StreamingCallListener[Int, Int](
         ServerCall(mock, ServerCallOptions.default),

@@ -44,7 +44,7 @@ class GrpcServicePrinter(
   private[this] val serverCalls = "_root_.io.grpc.stub.ServerCalls"
 
   private[this] def methodDescriptor(method: MethodDescriptor) = PrinterEndo { p =>
-    def marshaller(t: MethodDescriptorPimp#MethodTypeWrapper) =
+    def marshaller(t: ExtendedMethodDescriptor#MethodTypeWrapper) =
       if (t.customScalaType.isDefined)
         s"_root_.scalapb.grpc.Marshaller.forTypeMappedType[${t.baseScalaType}, ${t.scalaType}]"
       else
@@ -59,25 +59,29 @@ class GrpcServicePrinter(
 
     val grpcMethodDescriptor = "_root_.io.grpc.MethodDescriptor"
 
-    p.add(
-      s"""${method.deprecatedAnnotation}val ${method.grpcDescriptor.nameSymbol}: $grpcMethodDescriptor[${method.inputType.scalaType}, ${method.outputType.scalaType}] =
-         |  $grpcMethodDescriptor.newBuilder()
-         |    .setType($grpcMethodDescriptor.MethodType.$methodType)
-         |    .setFullMethodName($grpcMethodDescriptor.generateFullMethodName("${service.getFullName}", "${method.getName}"))
-         |    .setSampledToLocalTracing(true)
-         |    .setRequestMarshaller(${marshaller(method.inputType)})
-         |    .setResponseMarshaller(${marshaller(method.outputType)})
-         |    .setSchemaDescriptor(_root_.scalapb.grpc.ConcreteProtoMethodDescriptorSupplier.fromMethodDescriptor(${method.javaDescriptorSource}))
-         |    .build()
-         |""".stripMargin
-    )
+    p.indent
+      .add(
+        s"""${method.deprecatedAnnotation}val ${method.grpcDescriptor.nameSymbol}: $grpcMethodDescriptor[${method.inputType.scalaType}, ${method.outputType.scalaType}] =
+           |  $grpcMethodDescriptor.newBuilder()
+           |    .setType($grpcMethodDescriptor.MethodType.$methodType)
+           |    .setFullMethodName($grpcMethodDescriptor.generateFullMethodName("${service.getFullName}", "${method.getName}"))
+           |    .setSampledToLocalTracing(true)
+           |    .setRequestMarshaller(${marshaller(method.inputType)})
+           |    .setResponseMarshaller(${marshaller(method.outputType)})
+           |    .setSchemaDescriptor(_root_.scalapb.grpc.ConcreteProtoMethodDescriptorSupplier.fromMethodDescriptor(${method.javaDescriptorSource}))
+           |    .build()
+           |""".stripMargin
+      )
+      .outdent
   }
 
   private[this] def serviceDescriptor(service: ServiceDescriptor) = {
     val grpcServiceDescriptor = "_root_.io.grpc.ServiceDescriptor"
 
     PrinterEndo(
-      _.add(s"val ${service.grpcDescriptor.nameSymbol}: $grpcServiceDescriptor =").indent
+      _.indent
+        .add(s"val ${service.grpcDescriptor.nameSymbol}: $grpcServiceDescriptor =")
+        .indent
         .add(s"""$grpcServiceDescriptor.newBuilder("${service.getFullName}")""")
         .indent
         .add(
@@ -87,6 +91,7 @@ class GrpcServicePrinter(
           p.add(s".addMethod(${method.grpcDescriptor.nameSymbol})")
         }
         .add(".build()")
+        .outdent
         .outdent
         .outdent
         .newline
