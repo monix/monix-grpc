@@ -29,6 +29,6 @@ trait ClientCallOptionsApi[Repr] {
 }
 
 object ClientCallOptionsApi {
-  private[ClientCallOptionsApi] val clientBufferSize: CallOptions.Key[Int] =
-    CallOptions.Key.createWithDefault("clientBufferSize", 128)
+  private[client] val clientBufferSize: CallOptions.Key[Int] =
+    CallOptions.Key.createWithDefault("clientBufferSize", 0)
 }
