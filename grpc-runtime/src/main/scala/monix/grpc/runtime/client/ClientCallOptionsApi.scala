@@ -21,6 +21,14 @@ trait ClientCallOptionsApi[Repr] {
   def withTimeoutMillis(millis: Long): Repr =
     withTimeout(millis.millis)
 
-  def withOption[T](key: CallOptions.Key[T], value: T) =
+  def withOption[T](key: CallOptions.Key[T], value: T): Repr =
     mapCallOptions(opts => Task.now(opts.withOption(key, value)))
+
+  def withBufferSize(bufferSize: Int): Repr =
+    withOption(ClientCallOptionsApi.clientBufferSize, bufferSize)
+}
+
+object ClientCallOptionsApi {
+  private[ClientCallOptionsApi] val clientBufferSize: CallOptions.Key[Int] =
+    CallOptions.Key.createWithDefault("clientBufferSize", 128)
 }
