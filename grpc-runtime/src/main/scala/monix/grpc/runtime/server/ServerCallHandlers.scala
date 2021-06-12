@@ -147,7 +147,7 @@ object ServerCallHandlers {
         metadata: grpc.Metadata
     ): grpc.ServerCall.Listener[T] = {
       val call = ServerCall(grpcCall, options)
-      val listener = new StreamingCallListener(call, options.bufferCapacity)(scheduler)
+      val listener = new StreamingCallListener(call)(scheduler)
       listener.runStreamingResponseListener(metadata) { msgs =>
         Task.defer(f(msgs, metadata)).flatMap(call.sendMessage)
       }
@@ -176,7 +176,7 @@ object ServerCallHandlers {
     ): grpc.ServerCall.Listener[T] = {
 
       val call = ServerCall(grpcCall, options)
-      val listener = new StreamingCallListener(call, options.bufferCapacity)(scheduler)
+      val listener = new StreamingCallListener(call)(scheduler)
       listener.runStreamingResponseListener(metadata) { msgs =>
         call.sendStreamingResponses(
           Observable.defer(f(msgs, metadata)),
@@ -188,8 +188,7 @@ object ServerCallHandlers {
   }
 
   private[server] final class StreamingCallListener[Request, Response](
-      call: ServerCall[Request, Response],
-      capacity: BufferCapacity
+      call: ServerCall[Request, Response]
   )(implicit
       scheduler: Scheduler
   ) extends grpc.ServerCall.Listener[Request] {

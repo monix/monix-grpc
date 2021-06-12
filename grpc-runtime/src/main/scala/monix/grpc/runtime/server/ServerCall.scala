@@ -74,31 +74,3 @@ object ServerCall {
     new ServerCall(call)
   }
 }
-
-abstract class ServerCallOptions private (
-    val compressor: Option[ServerCompressor],
-    val bufferCapacity: BufferCapacity
-) {
-  //needs to be private for binary compatibility
-  private def copy(
-      compressor: Option[ServerCompressor] = this.compressor,
-      bufferCapacity: BufferCapacity
-  ): ServerCallOptions = new ServerCallOptions(compressor, bufferCapacity) {}
-
-  def withServerCompressor(
-      compressor: Option[ServerCompressor]
-  ): ServerCallOptions = copy(compressor, bufferCapacity)
-
-  def withServerCompressor(
-      bufferCapacity: BufferCapacity
-  ): ServerCallOptions = copy(compressor, bufferCapacity)
-}
-
-object ServerCallOptions {
-  val default: ServerCallOptions =
-    new ServerCallOptions(Some(GzipCompressor), BufferCapacity.Bounded(32)) {}
-}
-
-abstract sealed class ServerCompressor(val name: String) extends Product with Serializable
-
-case object GzipCompressor extends ServerCompressor("gzip")
