@@ -41,8 +41,6 @@ class GrpcServicePrinter(
   private def grpcDescriptor(method: MethodDescriptor): ScalaName =
     companionObject(method.getService) / s"METHOD_${NameUtils.toAllCaps(method.getName)}"
 
-  private[this] val serverCalls = "_root_.io.grpc.stub.ServerCalls"
-
   private[this] def methodDescriptor(method: MethodDescriptor) = PrinterEndo { p =>
     def marshaller(t: ExtendedMethodDescriptor#MethodTypeWrapper) =
       if (t.customScalaType.isDefined)
