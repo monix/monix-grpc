@@ -18,7 +18,7 @@ You can install monix-grpc by:
 
     ```scala
     PB.targets in Compile := Seq(
-     scalapb.gen(grpc = true) -> (sourceManaged in Compile).value / "scalapb",
+     scalapb.gen(grpc = false) -> (sourceManaged in Compile).value / "scalapb",
      monix.grpc.codegen.GrpcCodeGenerator -> (sourceManaged in Compile).value / "scalapb"
     )
     ```

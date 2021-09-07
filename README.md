@@ -12,8 +12,43 @@ A library to write grpc client and servers in Scala using [Monix][].
 - Embrace and extend `grpc-java`'s' API safely and idiomatically instead of creating a new API
 
 ### Installation
+#### sbt
+Add the following to your `project/plugins.sbt`:
+```sbt
+val zioGrpcVersion = "0.0.1"
+addSbtPlugin("com.thesamet" % "sbt-protoc" % "1.0.4")
 
-- [Install with sbt](examples/sbt-installation/README.md)
+libraryDependencies +=
+  "me.vican.jorge" %% "monix-grpc-codegen" % "0.0.0+45-79d91dec+20210625-1618"
+```
+
+Add the following to your `build.sbt`:
+```sbt
+lazy val root = project
+  .settings(
+    Compile / PB.targets := Seq(
+      scalapb.gen(grpc = false) -> (Compile / sourceManaged).value / "scalapb",
+      monix.grpc.codegen.GrpcCodeGenerator -> (Compile / sourceManaged).value / "scalapb"
+    ),
+
+    libraryDependencies ++= Seq(
+        "io.grpc" % "grpc-netty" % "1.39.0",
+        "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion
+    )
+  )
+```
+
+### Generator options
+Options can be set like:
+```sbt
+      monix.grpc.codegen.GrpcCodeGenerator(serviceSuffix = "MySuffix") -> (Compile / sourceManaged).value / "scalapb"
+```
+
+The current options are:
+- `serviceSuffix`: sets the suffix of the generated service name, the default is `Api`.
+
+### Example projects:
+- [sbt project](examples/sbt-installation/README.md)
 
 ### Team
 
