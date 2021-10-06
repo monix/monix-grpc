@@ -88,7 +88,9 @@ lazy val e2e = project
       "io.grpc" % "grpc-netty" % grpcJavaVersion,
       "org.scalameta" %% "munit" % "0.7.26",
       "org.slf4j" % "slf4j-api" % "1.7.30",
-      "org.apache.logging.log4j" % "log4j-slf4j-impl" % "2.13.3"
+      "org.apache.logging.log4j" % "log4j-slf4j-impl" % "2.13.3",
+      "com.thesamet.scalapb.common-protos" %% "proto-google-common-protos-scalapb_0.11" % "1.18.1-1" % "protobuf",
+      "com.thesamet.scalapb.common-protos" %% "proto-google-common-protos-scalapb_0.11" % "1.18.1-1"
     ),
     testFrameworks += new TestFramework("munit.Framework"),
     Compile / PB.targets := Seq(
