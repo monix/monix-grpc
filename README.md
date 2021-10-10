@@ -15,7 +15,6 @@ A library to write grpc client and servers in Scala using [Monix][].
 #### sbt
 Add the following to your `project/plugins.sbt`:
 ```sbt
-val zioGrpcVersion = "0.0.1"
 addSbtPlugin("com.thesamet" % "sbt-protoc" % "1.0.4")
 
 libraryDependencies +=
