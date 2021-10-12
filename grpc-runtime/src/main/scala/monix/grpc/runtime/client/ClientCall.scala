@@ -10,7 +10,7 @@ import io.grpc.{CallOptions, StatusRuntimeException}
 import scala.concurrent.duration.FiniteDuration
 import java.util.concurrent.TimeUnit
 import monix.eval.Fiber
-import _root_.monix.reactive.OverflowStrategy
+import monix.reactive.OverflowStrategy
 
 final class ClientCall[Request, Response] private[client] (
     call: grpc.ClientCall[Request, Response],
@@ -62,9 +62,12 @@ final class ClientCall[Request, Response] private[client] (
 
     runResponseObservableHandler(
       isolateObservable(
-        listener.incomingResponses
-          .doAfterSubscribe(startCall)
-          .doOnNext(_ => request(1))
+        bufferResponsesUpTo(
+          listener.incomingResponses
+            .doAfterSubscribe(startCall)
+            .doOnNext(_ => request(1)),
+          clientBufferSize
+        )
       )
     )
   }
@@ -137,10 +140,6 @@ final class ClientCall[Request, Response] private[client] (
   ): Observable[Response] = Observable.defer {
     val listener = ClientCallListeners.streaming[Response](request)
 
-    def bufferResponsesUpTo(responses: Observable[Response], bufferSize: Int) =
-      if (bufferSize == 0) responses
-      else responses.asyncBoundary(OverflowStrategy.BackPressure(bufferSize))
-
     val makeCall = start(listener, headers).>> {
       sendStreamingRequests(requests, listener.onReadyEffect).start.map { sendRequestsFiber =>
         val flowControlledResponses = listener.incomingResponses
@@ -163,6 +162,10 @@ final class ClientCall[Request, Response] private[client] (
       isolateObservable(Observable.fromTask(makeCall).flatten)
     )
   }
+
+  private def bufferResponsesUpTo(responses: Observable[Response], bufferSize: Int) =
+    if (bufferSize == 0) responses
+    else responses.asyncBoundary(OverflowStrategy.BackPressure(bufferSize))
 
   private def runResponseTaskHandler[R](response: Task[R]): Task[R] = {
     response.guaranteeCase {
