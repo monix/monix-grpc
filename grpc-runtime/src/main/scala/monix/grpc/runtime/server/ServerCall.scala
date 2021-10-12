@@ -2,7 +2,7 @@ package monix.grpc.runtime.server
 
 import io.grpc
 import monix.eval.Task
-import monix.execution.{AsyncVar, BufferCapacity}
+import monix.execution.AsyncVar
 import monix.reactive.Observable
 
 /**
@@ -13,12 +13,20 @@ import monix.reactive.Observable
  * as input and output types.
  *
  * @param call is the instance of the wrapped grpc server call.
- * @param options is a field for custom user-defined server call options.
  */
-final class ServerCall[Request, Response] private (
-    val call: grpc.ServerCall[Request, Response],
-    val options: ServerCallOptions
-) {
+final case class ServerCall[Request, Response](
+    val call: grpc.ServerCall[Request, Response]
+) extends AnyVal {
+
+  def initOptions(
+      options: ServerCallOptions
+  ): Task[Unit] = Task {
+    options.enabledMessageCompression.foreach(call.setMessageCompression)
+    options.compressor.foreach { compressor =>
+      grpc.CompressorRegistry.getDefaultInstance().register(compressor)
+      compressor.getMessageEncoding()
+    }
+  }
 
   /**
    * Requests up to the given number of messages from the call to be delivered
@@ -166,12 +174,5 @@ object ServerCall {
   def apply[Request, Response](
       call: grpc.ServerCall[Request, Response],
       options: ServerCallOptions
-  ): ServerCall[Request, Response] = {
-    options.enabledMessageCompression.foreach(call.setMessageCompression)
-    options.compressor.foreach { compressor =>
-      grpc.CompressorRegistry.getDefaultInstance().register(compressor)
-      compressor.getMessageEncoding()
-    }
-    new ServerCall(call, options)
-  }
+  ): ServerCall[Request, Response] = new ServerCall(call)
 }

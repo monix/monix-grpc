@@ -13,23 +13,25 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 import scala.concurrent.blocking
 import scala.concurrent.duration.FiniteDuration
+import monix.grpc.runtime.server.ServerCallOptions
+import monix.grpc.runtime.server.PerMethodServerCallOptions
 
 abstract class GrpcBaseSpec extends munit.FunSuite {
   private val logger: Logger = LoggerFactory.getLogger(this.getClass)
   final class GrpcTestState(
-      val stub: TestServiceApi,
+      val stub: TestServiceApi.Stub,
       private[this] val grpcServer: grpc.Server,
       private[this] val grpcChannel: grpc.ManagedChannel
   ) {
 
-    def withClientStream(
-        sendRequests: ClientStream[Request] => Task[Unit]
+    def withClientStream[R](
+        sendRequests: ClientStream[R] => Task[Unit]
     )(
-        receiveResponses: Observable[Request] => Task[Unit]
+        receiveResponses: Observable[R] => Task[Unit]
     ): Task[Unit] = {
       val subscribed = CancelablePromise[Unit]()
-      val subject = PublishSubject[Request]()
-      val stream = new ClientStream[Request](subject)
+      val subject = PublishSubject[R]()
+      val stream = new ClientStream[R](subject)
 
       val startSendingRequests = for {
         _ <- Task.fromCancelablePromise(subscribed)
@@ -67,13 +69,27 @@ abstract class GrpcBaseSpec extends munit.FunSuite {
   implicit val scheduler: Scheduler = Scheduler.Implicits.global
   implicit val taskCtx: Task.Options = Task.defaultOptions.enableLocalContextPropagation
 
-  def testGrpc[T](name: String)(body: GrpcTestState => Any)(implicit loc: munit.Location): Unit =
-    testGrpc(name: munit.TestOptions)(body)
+  def testGrpc[T](
+      name: String
+  )(body: GrpcTestState => Any)(implicit loc: munit.Location): Unit =
+    testGrpc(name: munit.TestOptions, None)(body)
 
   def testGrpc[T](
       opts: munit.TestOptions
+  )(body: GrpcTestState => Any)(implicit loc: munit.Location): Unit =
+    testGrpc(opts, None)(body)
+
+  def testGrpc[T](
+      name: String,
+      serverBufferSize: Option[Int]
+  )(body: GrpcTestState => Any)(implicit loc: munit.Location): Unit =
+    testGrpc(name: munit.TestOptions, serverBufferSize)(body)
+
+  def testGrpc[T](
+      opts: munit.TestOptions,
+      serverBufferSize: Option[Int]
   )(body: GrpcTestState => Any)(implicit loc: munit.Location): Unit = {
-    val stateResource = serverResource(defaultPort).flatMap { server =>
+    val stateResource = serverResource(defaultPort, serverBufferSize).flatMap { server =>
       channelResource(defaultPort).map { channel =>
         val stub = TestServiceApi.stub(channel)
         new GrpcTestState(stub, server, channel)
@@ -91,10 +107,17 @@ abstract class GrpcBaseSpec extends munit.FunSuite {
   }
 
   private def serverResource(
-      port: Int
+      port: Int,
+      bufferSize: Option[Int]
   )(implicit scheduler: Scheduler): Resource[Task, grpc.Server] = Resource {
-    val service = TestServiceApi.bindService(new TestService(logger))
-    //val server = NettyServerBuilder.forPort(port).addService(service).build()
+    val perMethodOpts: PerMethodServerCallOptions = _ => Task {
+      bufferSize match {
+        case Some(bufferSize) => ServerCallOptions().withBufferSize(bufferSize)
+        case None => ServerCallOptions()
+      }
+    }
+
+    val service = TestServiceApi.service(new TestService(logger), perMethodOpts)
     val server = InProcessServerBuilder.forName(testId).addService(service).build()
     val waitForTermination = Task(blocking(server.awaitTermination(1, TimeUnit.SECONDS))).void
       .onErrorHandle(logger.error(s"Timed out to close grpc server after 1s!", _))

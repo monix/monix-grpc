@@ -6,6 +6,15 @@ import monix.execution.{AsyncVar, BufferCapacity}
 import monix.reactive.Observable
 
 /**
+ * Defines a SAM trait that allows implementors to pick which server call
+ * options should be configured per grpc method instead of uniformly setting
+ * the same options for all implemented methods per service.
+ */
+abstract class PerMethodServerCallOptions extends (
+  grpc.MethodDescriptor[_, _] => Task[ServerCallOptions]
+)
+
+/**
  * Defines user-defined configurations for a given server call.
  *
  * Note that this call only keeps track of user-defined values and thus a
@@ -45,8 +54,10 @@ final class ServerCallOptions private (
    * long as there is space available. It is recommended that the buffer size
    * has a value that is a power of 2 or it gets rounded to one.
    */
-  def withBufferSize(bufferSize: Int): ServerCallOptions =
-    new ServerCallOptions(compressor, Some(bufferSize), enabledMessageCompression)
+  def withBufferSize(bufferSize: Int): ServerCallOptions = {
+    if (bufferSize <= 0) new ServerCallOptions(compressor, None, enabledMessageCompression)
+    else new ServerCallOptions(compressor, Some(bufferSize), enabledMessageCompression)
+  }
 
   /**
    * Disables buffering for client messages. Consequently, client messages
@@ -76,8 +87,8 @@ final class ServerCallOptions private (
 }
 
 object ServerCallOptions {
-  def apply(): ServerCallOptions =
-    //val bufferSize = monix.execution.internal.Platform.recommendedBufferChunkSize
+  def apply(): ServerCallOptions = {
+    val bufferSize = monix.execution.internal.Platform.recommendedBufferChunkSize
     // By default, grpc enables message compression and uses gzip compression
-    new ServerCallOptions(None, None, None)
-}
+    // even if the values we pass here are `None`, keep that in mind
+    new ServerCallOptions(None, Some(bufferSize), None) } }

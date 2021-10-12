@@ -29,6 +29,8 @@ class GrpcServicePrinter(
     val Channel = s"$grpcPkg.Channel"
     val Metadata = s"$grpcPkg.Metadata"
     val CallOptions = s"$grpcPkg.CallOptions"
+    val ServerCallOptions = s"$thisPkg.server.ServerCallOptions"
+    val PerMethodServerCallOptions = s"$thisPkg.server.PerMethodServerCallOptions"
     val FailedPrecondition = s"$grpcPkg.Status.FAILED_PRECONDITION"
     val ServerServiceDefinition = s"$grpcPkg.ServerServiceDefinition"
   }
@@ -92,7 +94,6 @@ class GrpcServicePrinter(
         .outdent
         .outdent
         .outdent
-        .newline
     )
   }
 
@@ -119,7 +120,10 @@ class GrpcServicePrinter(
       .newline
       .call(generateBindService)
       .newline
-      .call(generateServerDefinition)
+      .call(generateSimpleServerDefinition)
+      .newline
+      .call(generateFullServerDefinition)
+      .newline
       .outdent
       .call(service.methods.map(methodDescriptor): _*)
       .call(serviceDescriptor(service))
@@ -171,7 +175,20 @@ class GrpcServicePrinter(
       .add("}")
   }
 
-  private def generateServerDefinition: PrinterEndo = p => {
+  private def generateSimpleServerDefinition: PrinterEndo = p => {
+    p.add(
+      s"def service(impl: $serviceNameMonix)(implicit scheduler: ${defs.Scheduler}): ${defs.ServerServiceDefinition} = {"
+    ).indent
+      .add(s"val makeOpts: ${defs.PerMethodServerCallOptions} =")
+      .indent
+      .add(s"_ => ${defs.Task}.now(${defs.ServerCallOptions}())")
+      .outdent
+      .add(s"service(impl, makeOpts)")
+      .outdent
+      .add("}")
+  }
+
+  private def generateFullServerDefinition: PrinterEndo = p => {
     def serviceBindingImplementation(method: MethodDescriptor): PrinterEndo = { p =>
       val inType = method.inputType.scalaType
       val outType = method.outputType.scalaType
@@ -179,15 +196,13 @@ class GrpcServicePrinter(
       val handler = s"${defs.ServerCallHandlers}.${handleMethod(method)}[$inType, $outType]"
 
       p.add(
-        s".addMethod($descriptor, $handler(impl.${method.name}))"
+        s".addMethod($descriptor, $handler(impl.${method.name}, perMethodOpts($descriptor)))"
       )
     }
 
     p.add(
-      s"def service(impl: $serviceNameMonix)(implicit scheduler: ${defs.Scheduler}): ${defs.ServerServiceDefinition} = {"
+      s"def service(impl: $serviceNameMonix, perMethodOpts: ${defs.PerMethodServerCallOptions})(implicit scheduler: ${defs.Scheduler}): ${defs.ServerServiceDefinition} = {"
     ).indent
-      .newline
-      .newline
       .add(s"${defs.ServerServiceDefinition}")
       .indent
       .add(s".builder(${grpcDescriptor(service).fullName})")

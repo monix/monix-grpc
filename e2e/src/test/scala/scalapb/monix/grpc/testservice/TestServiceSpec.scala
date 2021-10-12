@@ -195,6 +195,21 @@ class TestServiceSpec extends GrpcBaseSpec {
     }
   }
 
+  /*
+  testGrpc("numbers request supports backpressure") { state =>
+    def sendRequests(stream: ClientStream[Number]) = for {
+      _ <- stream.onNextL(Number.of(???), 0)
+      _ <- stream.onCompleteL
+    } yield ()
+
+    state.withClientStream(sendRequests) { clientRequests =>
+      state.stub
+        .requestPressure(clientRequests)
+        .void
+    }
+  }
+   */
+
   implicit class ExpectTaskOps[T](t: Task[T]) {
 
     /** Expect a silent (benign) exception thrown by the server */

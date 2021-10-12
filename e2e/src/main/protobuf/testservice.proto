@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package scalapb.monix.grpc;
 
+import "google/protobuf/empty.proto";
+
 message Request {
     enum Scenario {
         OK = 0;
@@ -23,11 +25,20 @@ message Response {
 }
 
 service TestService {
+    // Basic API
     rpc Unary(Request) returns (Response);
-
     rpc ServerStreaming(Request) returns (stream Response);
-
     rpc ClientStreaming(stream Request) returns (Response);
-
     rpc BidiStreaming(stream Request) returns (stream Response);
+
+    // Numbers Pressure API
+    rpc RequestPressure (stream Number) returns (Number) {}
+    rpc ResponsePressure (google.protobuf.Empty) returns (stream Number) {}
+    rpc TwoWayPressure (stream Number) returns (stream Number) {}
+    rpc TwoWayRequestPressure (stream Number) returns (stream Number) {}
+    rpc TwoWayResponsePressure (stream Number) returns (stream Number) {}
+}
+
+message Number {
+    repeated int32 number = 1;
 }

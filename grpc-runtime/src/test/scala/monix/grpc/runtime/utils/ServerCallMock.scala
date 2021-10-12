@@ -19,11 +19,12 @@ final case class ServerCallMock[Request, Response]()(implicit val scheduler: Sch
 
   override def request(numMessages: Int): Unit = {
     requestAmount.onNext(numMessages)
-    requestCount.increment(numMessages)
+      .onSuccess { case _ => requestCount.increment(numMessages) }
   }
 
-  def cancel =
+  def cancel(): Unit = {
     isCancelled = true
+  }
 
   override def sendHeaders(headers: Metadata): Unit = this.headers.onNext(headers)
 
