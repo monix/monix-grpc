@@ -27,7 +27,7 @@ lazy val root = project
   .settings(
     Compile / PB.targets := Seq(
       scalapb.gen(grpc = false) -> (Compile / sourceManaged).value / "scalapb",
-      monix.grpc.codegen.GrpcCodeGenerator -> (Compile / sourceManaged).value / "scalapb"
+      monix.grpc.codegen() -> (Compile / sourceManaged).value / "scalapb"
     ),
 
     libraryDependencies ++= Seq(

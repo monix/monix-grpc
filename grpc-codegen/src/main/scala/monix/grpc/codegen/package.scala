@@ -3,13 +3,10 @@ package monix.grpc
 import protocbridge.{Artifact, SandboxedJvmGenerator}
 import scalapb.GeneratorOption
 import scalapb.GeneratorOption.FlatPackage
-
-/**
-  * Copyright (C) 08.11.21 - REstore NV
-  */
+import monix.grpc.codegen.build.BuildInfo
 
 package object codegen {
-  val SandboxedGenerator = SandboxedJvmGenerator.forModule(
+  private val SandboxedGenerator = SandboxedJvmGenerator.forModule(
     "scala",
     Artifact(
       "me.vican.jorge",
@@ -29,11 +26,9 @@ package object codegen {
   def apply(options: GeneratorOption*): (SandboxedJvmGenerator, Seq[String]) =
     apply(options.toSet)
 
-  def apply(): (SandboxedJvmGenerator, Seq[String]) = apply()
-
   def apply(
       flatPackage: Boolean = false
-    ): (SandboxedJvmGenerator, Seq[String]) = {
+  ): (SandboxedJvmGenerator, Seq[String]) = {
     val optionsBuilder = Set.newBuilder[GeneratorOption]
     if (flatPackage) {
       optionsBuilder += FlatPackage
