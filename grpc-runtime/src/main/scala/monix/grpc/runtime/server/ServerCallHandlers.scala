@@ -22,6 +22,35 @@ object ServerCallHandlers {
    * @param scheduler is the (implicit) scheduler available in the service definition.
    * @return a grpc server call handler that will be responsible for processing this call.
    */
+  def unaryToUnaryCallWithoutMetaData[T, R](
+      f: (T) => Task[R],
+      options: ServerCallOptions = ServerCallOptions.default
+  )(implicit
+      scheduler: Scheduler
+  ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
+    def startCall(
+        grpcCall: grpc.ServerCall[T, R],
+        metadata: grpc.Metadata
+    ): grpc.ServerCall.Listener[T] = {
+      val call = ServerCall(grpcCall, options)
+      val listener = new UnaryCallListener(call, scheduler)
+      listener.runUnaryResponseListener(metadata) { msg =>
+        Task.defer(f(msg)).flatMap(call.sendMessage)
+      }
+      listener
+    }
+
+  }
+
+  /**
+   * Defines a grpc service call handler that receives only one request from the
+   * client and returns one response from the server.
+   *
+   * @param f is the function that turns a request and metadata into a response.
+   * @param options is the configuration to configure options for this call.
+   * @param scheduler is the (implicit) scheduler available in the service definition.
+   * @return a grpc server call handler that will be responsible for processing this call.
+   */
   def unaryToUnaryCall[T, R](
       f: (T, grpc.Metadata) => Task[R],
       options: ServerCallOptions = ServerCallOptions.default
@@ -40,6 +69,38 @@ object ServerCallHandlers {
       listener
     }
 
+  }
+
+  /**
+   * Defines a grpc service call handler that receives only one request from the
+   * client and returns several responses from the server.
+   *
+   * @param f is the function that turns a request and metadata into a response.
+   * @param options is the configuration to configure options for this call.
+   * @param scheduler is the (implicit) scheduler available in the service definition.
+   * @return a grpc server call handler that will be responsible for processing this call.
+   */
+  def unaryToStreamingCallWithoutMetaData[T, R](
+      f: (T) => Observable[R],
+      options: ServerCallOptions = ServerCallOptions.default
+  )(implicit
+      scheduler: Scheduler
+  ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
+    def startCall(
+        grpcCall: grpc.ServerCall[T, R],
+        metadata: grpc.Metadata
+    ): grpc.ServerCall.Listener[T] = {
+      val call = ServerCall(grpcCall, options)
+      val listener = new UnaryCallListener(call, scheduler)
+
+      listener.runUnaryResponseListener(metadata) { msg =>
+        call.sendStreamingResponses(
+          Observable.defer(f(msg)),
+          listener.onReadyEffect
+        )
+      }
+      listener
+    }
   }
 
   /**
@@ -136,6 +197,34 @@ object ServerCallHandlers {
    * @param scheduler is the (implicit) scheduler available in the service definition.
    * @return a grpc server call handler that will be responsible for processing this call.
    */
+  def streamingToUnaryCallWithoutMetaData[T, R](
+      f: (Observable[T]) => Task[R],
+      options: ServerCallOptions = ServerCallOptions.default
+  )(implicit
+      scheduler: Scheduler
+  ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
+    def startCall(
+        grpcCall: grpc.ServerCall[T, R],
+        metadata: grpc.Metadata
+    ): grpc.ServerCall.Listener[T] = {
+      val call = ServerCall(grpcCall, options)
+      val listener = new StreamingCallListener(call, options.bufferCapacity)(scheduler)
+      listener.runStreamingResponseListener(metadata) { msgs =>
+        Task.defer(f(msgs)).flatMap(call.sendMessage)
+      }
+      listener
+    }
+  }
+
+  /**
+   * Defines a grpc service call handler that receives several requests request
+   * from the client and returns one response from the server.
+   *
+   * @param f is the function that turns a request and metadata into a response.
+   * @param options is the configuration to configure options for this call.
+   * @param scheduler is the (implicit) scheduler available in the service definition.
+   * @return a grpc server call handler that will be responsible for processing this call.
+   */
   def streamingToUnaryCall[T, R](
       f: (Observable[T], grpc.Metadata) => Task[R],
       options: ServerCallOptions = ServerCallOptions.default
@@ -150,6 +239,38 @@ object ServerCallHandlers {
       val listener = new StreamingCallListener(call, options.bufferCapacity)(scheduler)
       listener.runStreamingResponseListener(metadata) { msgs =>
         Task.defer(f(msgs, metadata)).flatMap(call.sendMessage)
+      }
+      listener
+    }
+  }
+
+  /**
+   * Defines a grpc service call handler that receives several requests request
+   * from the client and returns several responses from the server.
+   *
+   * @param f is the function that turns a request and metadata into a response.
+   * @param options is the configuration to configure options for this call.
+   * @param scheduler is the (implicit) scheduler available in the service definition.
+   * @return a grpc server call handler that will be responsible for processing this call.
+   */
+  def streamingToStreamingCallWithoutMetaData[T, R](
+      f: (Observable[T]) => Observable[R],
+      options: ServerCallOptions = ServerCallOptions.default
+  )(implicit
+      scheduler: Scheduler
+  ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
+    def startCall(
+        grpcCall: grpc.ServerCall[T, R],
+        metadata: grpc.Metadata
+    ): grpc.ServerCall.Listener[T] = {
+
+      val call = ServerCall(grpcCall, options)
+      val listener = new StreamingCallListener(call, options.bufferCapacity)(scheduler)
+      listener.runStreamingResponseListener(metadata) { msgs =>
+        call.sendStreamingResponses(
+          Observable.defer(f(msgs)),
+          listener.onReadyEffect
+        )
       }
       listener
     }

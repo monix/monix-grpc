@@ -10,6 +10,7 @@ class GrpcServicePrinter(
     file: FileDescriptor,
     service: ServiceDescriptor,
     serviceSuffix: String,
+    disableMetaData: Boolean,
     implicits: DescriptorImplicits
 ) {
   import implicits._
@@ -31,6 +32,8 @@ class GrpcServicePrinter(
     val CallOptions = s"$grpcPkg.CallOptions"
     val FailedPrecondition = s"$grpcPkg.Status.FAILED_PRECONDITION"
     val ServerServiceDefinition = s"$grpcPkg.ServerServiceDefinition"
+
+    val serverHandlesModifier = if (disableMetaData) "WithoutMetaData" else ""
   }
 
   private def companionObject(self: ServiceDescriptor): ScalaName =
@@ -138,7 +141,7 @@ class GrpcServicePrinter(
       ).indent
         .add(s"${defs.ClientCall}(channel, ${grpcDescriptor(method).fullName}, opts)")
         .indent
-        .add(s".${handleMethod(method)}(request, metadata)")
+        .add(s".${handleMethod(method)}(request ${if (!disableMetaData) ", metadata" else ""})")
         .outdent
         .outdent
         .add("}")
@@ -178,7 +181,8 @@ class GrpcServicePrinter(
       val inType = method.inputType.scalaType
       val outType = method.outputType.scalaType
       val descriptor = grpcDescriptor(method).fullName
-      val handler = s"${defs.ServerCallHandlers}.${handleMethod(method)}[$inType, $outType]"
+      val handler =
+        s"${defs.ServerCallHandlers}.${handleMethod(method)}${defs.serverHandlesModifier}[$inType, $outType]"
 
       p.add(
         s".addMethod($descriptor, $handler(impl.${method.name}))"
@@ -210,19 +214,20 @@ class GrpcServicePrinter(
   }
 
   private def serviceMethodSignature(method: MethodDescriptor): String = {
-    val metadata = s"metadata: ${defs.Metadata} = new ${defs.Metadata}()"
+    val metadata =
+      if (!disableMetaData) s", metadata: ${defs.Metadata} = new ${defs.Metadata}()" else ""
     val scalaInType = method.inputType.scalaType
     val scalaOutType = method.outputType.scalaType
 
     s"def ${method.name}" + (method.streamType match {
       case StreamType.Unary =>
-        s"(request: $scalaInType, $metadata): ${defs.Task}[$scalaOutType]"
+        s"(request: $scalaInType $metadata): ${defs.Task}[$scalaOutType]"
       case StreamType.ClientStreaming =>
-        s"(request: ${defs.Observable}[$scalaInType], $metadata): ${defs.Task}[$scalaOutType]"
+        s"(request: ${defs.Observable}[$scalaInType] $metadata): ${defs.Task}[$scalaOutType]"
       case StreamType.ServerStreaming =>
-        s"(request: $scalaInType, $metadata): ${defs.Observable}[$scalaOutType]"
+        s"(request: $scalaInType $metadata): ${defs.Observable}[$scalaOutType]"
       case StreamType.Bidirectional =>
-        s"(request: ${defs.Observable}[$scalaInType], $metadata): ${defs.Observable}[$scalaOutType]"
+        s"(request: ${defs.Observable}[$scalaInType] $metadata): ${defs.Observable}[$scalaOutType]"
     })
   }
 

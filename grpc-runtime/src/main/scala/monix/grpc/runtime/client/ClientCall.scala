@@ -2,14 +2,13 @@ package monix.grpc.runtime.client
 
 import cats.effect.ExitCase
 import io.grpc
-import monix.eval.{Task, TaskLocal}
+import io.grpc.StatusRuntimeException
+import monix.eval.{Fiber, Task, TaskLocal}
 import monix.execution.{AsyncVar, Scheduler}
 import monix.reactive.Observable
-import io.grpc.{CallOptions, StatusRuntimeException}
 
-import scala.concurrent.duration.FiniteDuration
 import java.util.concurrent.TimeUnit
-import monix.eval.Fiber
+import scala.concurrent.duration.FiniteDuration
 
 class ClientCall[Request, Response] private[client] (
     val call: grpc.ClientCall[Request, Response],
@@ -18,7 +17,7 @@ class ClientCall[Request, Response] private[client] (
 
   def unaryToUnaryCall(
       message: Request,
-      headers: grpc.Metadata
+      headers: grpc.Metadata = new grpc.Metadata()
   ): Task[Response] = Task.defer {
     val listener = ClientCallListeners.unary[Response]
     val makeCall = for {
@@ -40,7 +39,7 @@ class ClientCall[Request, Response] private[client] (
 
   def unaryToStreamingCall(
       message: Request,
-      headers: grpc.Metadata
+      headers: grpc.Metadata = new grpc.Metadata()
   )(implicit
       scheduler: Scheduler
   ): Observable[Response] = Observable.defer {
@@ -68,7 +67,7 @@ class ClientCall[Request, Response] private[client] (
 
   def streamingToUnaryCall(
       messages: Observable[Request],
-      headers: grpc.Metadata
+      headers: grpc.Metadata = new grpc.Metadata()
   ): Task[Response] = Task.defer {
     val listener = ClientCallListeners.unary[Response]
     val makeCall = for {
@@ -128,7 +127,7 @@ class ClientCall[Request, Response] private[client] (
 
   def streamingToStreamingCall(
       requests: Observable[Request],
-      headers: grpc.Metadata
+      headers: grpc.Metadata = new grpc.Metadata()
   )(implicit
       scheduler: Scheduler
   ): Observable[Response] = Observable.defer {
