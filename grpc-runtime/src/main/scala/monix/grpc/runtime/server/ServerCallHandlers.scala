@@ -24,7 +24,7 @@ object ServerCallHandlers {
    */
   def unaryToUnaryCall[T, R](
       f: (T, grpc.Metadata) => Task[R],
-      options: ServerCallOptions = ServerCallOptions.default
+      options: ServerCallOptions = ServerCallOptions()
   )(implicit
       scheduler: Scheduler
   ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
@@ -53,7 +53,7 @@ object ServerCallHandlers {
    */
   def unaryToStreamingCall[T, R](
       f: (T, grpc.Metadata) => Observable[R],
-      options: ServerCallOptions = ServerCallOptions.default
+      options: ServerCallOptions = ServerCallOptions()
   )(implicit
       scheduler: Scheduler
   ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
@@ -138,7 +138,7 @@ object ServerCallHandlers {
    */
   def streamingToUnaryCall[T, R](
       f: (Observable[T], grpc.Metadata) => Task[R],
-      options: ServerCallOptions = ServerCallOptions.default
+      options: ServerCallOptions = ServerCallOptions()
   )(implicit
       scheduler: Scheduler
   ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
@@ -147,7 +147,7 @@ object ServerCallHandlers {
         metadata: grpc.Metadata
     ): grpc.ServerCall.Listener[T] = {
       val call = ServerCall(grpcCall, options)
-      val listener = new StreamingCallListener(call, options.bufferCapacity)(scheduler)
+      val listener = new StreamingCallListener(call)(scheduler)
       listener.runStreamingResponseListener(metadata) { msgs =>
         Task.defer(f(msgs, metadata)).flatMap(call.sendMessage)
       }
@@ -166,7 +166,7 @@ object ServerCallHandlers {
    */
   def streamingToStreamingCall[T, R](
       f: (Observable[T], grpc.Metadata) => Observable[R],
-      options: ServerCallOptions = ServerCallOptions.default
+      options: ServerCallOptions = ServerCallOptions()
   )(implicit
       scheduler: Scheduler
   ): grpc.ServerCallHandler[T, R] = new grpc.ServerCallHandler[T, R] {
@@ -176,7 +176,7 @@ object ServerCallHandlers {
     ): grpc.ServerCall.Listener[T] = {
 
       val call = ServerCall(grpcCall, options)
-      val listener = new StreamingCallListener(call, options.bufferCapacity)(scheduler)
+      val listener = new StreamingCallListener(call)(scheduler)
       listener.runStreamingResponseListener(metadata) { msgs =>
         call.sendStreamingResponses(
           Observable.defer(f(msgs, metadata)),
@@ -188,8 +188,7 @@ object ServerCallHandlers {
   }
 
   private[server] final class StreamingCallListener[Request, Response](
-      call: ServerCall[Request, Response],
-      capacity: BufferCapacity
+      call: ServerCall[Request, Response]
   )(implicit
       scheduler: Scheduler
   ) extends grpc.ServerCall.Listener[Request] {
@@ -201,17 +200,24 @@ object ServerCallHandlers {
 
     val onReadyEffect: AsyncVar[Unit] = AsyncVar.empty[Unit]()
 
+    private[this] val bufferSize = call.options.bufferSize.getOrElse(0)
     def runStreamingResponseListener(
         metadata: grpc.Metadata
     )(
         sendResponses: Observable[Request] => Task[Unit]
     ): Unit = {
+      def bufferResponsesUpTo(responses: Observable[Request]) =
+        if (bufferSize == 0) responses
+        else responses.asyncBoundary(OverflowStrategy.BackPressure(bufferSize))
+
       val handleResponse = for {
         _ <- call.sendHeaders(metadata)
         _ <- sendResponses {
-          subject
-            .doAfterSubscribe(call.request(1))
-            .doOnNext(_ => call.request(1))
+          bufferResponsesUpTo {
+            subject
+              .doAfterSubscribe(call.request(1))
+              .doOnNext(_ => call.request(1))
+          }
         }
       } yield ()
 
@@ -244,11 +250,11 @@ object ServerCallHandlers {
       isCancelled: CancelablePromise[Unit]
   ): Task[Unit] = {
     val finalHandler = handleResponse.guaranteeCase {
-      case ExitCase.Completed => call.closeStream(grpc.Status.OK, new grpc.Metadata())
+      case ExitCase.Completed => call.close(grpc.Status.OK, new grpc.Metadata())
       case ExitCase.Error(err) => reportError(err, call, new grpc.Metadata())
       case ExitCase.Canceled =>
         val description = "Propagating cancellation because server response handler was cancelled!"
-        call.closeStream(grpc.Status.CANCELLED.withDescription(description), new grpc.Metadata())
+        call.close(grpc.Status.CANCELLED.withDescription(description), new grpc.Metadata())
     }
 
     // If `isCancelled` is completed, then client cancelled the grpc call and
@@ -264,13 +270,13 @@ object ServerCallHandlers {
     err match {
       case err: grpc.StatusException =>
         val metadata = Option(err.getTrailers).getOrElse(new grpc.Metadata())
-        call.closeStream(err.getStatus, metadata)
+        call.close(err.getStatus, metadata)
       case err: grpc.StatusRuntimeException =>
         val metadata = Option(err.getTrailers).getOrElse(new grpc.Metadata())
-        call.closeStream(err.getStatus, metadata)
+        call.close(err.getStatus, metadata)
       case err =>
         val status = grpc.Status.INTERNAL.withDescription(err.getMessage).withCause(err)
-        call.closeStream(status, unknownErrorMetadata)
+        call.close(status, unknownErrorMetadata)
     }
   }
 }

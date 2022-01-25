@@ -16,11 +16,7 @@ class ServerCallTest extends FunSuite {
 
   test("requests 1 response after subscribing") {
     val mock = ServerCallMock[Int, Int]()
-    val listener =
-      new StreamingCallListener[Int, Int](
-        ServerCall(mock, ServerCallOptions.default),
-        BufferCapacity.Unbounded()
-      )
+    val listener = new StreamingCallListener[Int, Int](ServerCall(mock, ServerCallOptions()))
 
     listener.runStreamingResponseListener(new Metadata())(_.lastOptionL.map(_ => ()))
 
@@ -32,11 +28,8 @@ class ServerCallTest extends FunSuite {
   test("requests new elements as they are being processed") {
     val mock = ServerCallMock[Int, Int]()
     val testSubscriber = TestSubscriber[Int](false)
-    val listener =
-      new StreamingCallListener[Int, Int](
-        ServerCall(mock, ServerCallOptions.default),
-        BufferCapacity.Unbounded()
-      )
+    val callOptions = ServerCallOptions().withBufferSize(0)
+    val listener = new StreamingCallListener[Int, Int](ServerCall(mock, callOptions))
 
     listener.runStreamingResponseListener(new Metadata()) { requests =>
       requests.subscribe(testSubscriber)
@@ -72,11 +65,7 @@ class ServerCallTest extends FunSuite {
 
   test("onReadyEffect is triggered onReady") {
     val mock = ServerCallMock[Int, Int]()
-    val listener =
-      new StreamingCallListener[Int, Int](
-        ServerCall(mock, ServerCallOptions.default),
-        BufferCapacity.Unbounded()
-      )
+    val listener = new StreamingCallListener[Int, Int](ServerCall(mock, ServerCallOptions()))
     listener.runStreamingResponseListener(new Metadata())(_ => Task.never)
 
     assertEquals(listener.onReadyEffect.tryTake(), None)
@@ -86,11 +75,7 @@ class ServerCallTest extends FunSuite {
 
   test("rpc call is cancelled successfully") {
     val mock = ServerCallMock[Int, Int]()
-    val listener =
-      new StreamingCallListener[Int, Int](
-        ServerCall(mock, ServerCallOptions.default),
-        BufferCapacity.Unbounded()
-      )
+    val listener = new StreamingCallListener[Int, Int](ServerCall(mock, ServerCallOptions()))
     listener.runStreamingResponseListener(new Metadata())(_ => Task.never)
 
     Task(listener.onCancel()).delayExecution(2.milli).runAsyncAndForget

@@ -4,23 +4,24 @@ import monix.execution.{Ack, AsyncVar, Scheduler}
 import monix.reactive.observers.Subscriber
 
 import scala.concurrent.Future
+import monix.execution.CancelableFuture
 
 case class TestSubscriber[T](autoAcc: Boolean)(implicit val scheduler: Scheduler)
     extends Subscriber[T] {
 
-  var onNextEvents = Seq[T]()
-  var onErrorEvents = Seq[Throwable]()
-  var isComplete: Boolean = false
-  private val acks = AsyncVar.empty[Ack]()
-  val nextEvent = AsyncVar.empty[T]()
+  private[this] var onNextEvents = Seq[T]()
+  private[this] var onErrorEvents = Seq[Throwable]()
+  private[this] var isComplete: Boolean = false
+  private[this] val acks = AsyncVar.empty[Ack]()
+  private[this] val nextEvent = AsyncVar.empty[T]()
 
-  def next =
+  def next(): CancelableFuture[T] =
     nextEvent.take()
 
-  def continue =
+  def continue(): CancelableFuture[Unit] =
     acks.put(Ack.Continue)
 
-  def stop =
+  def stop(): CancelableFuture[Unit] =
     acks.put(Ack.Stop)
 
   override def onNext(elem: T): Future[Ack] = {
