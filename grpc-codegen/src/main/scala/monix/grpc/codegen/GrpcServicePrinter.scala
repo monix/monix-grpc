@@ -26,6 +26,7 @@ class GrpcServicePrinter(
 
     val ClientCall = s"$thisPkg.client.ClientCall"
     val ServerCallHandlers = s"$thisPkg.server.ServerCallHandlers"
+    val ServerCallOptions = s"$thisPkg.server.ServerCallOptions"
     val Channel = s"$grpcPkg.Channel"
     val Metadata = s"$grpcPkg.Metadata"
     val CallOptions = s"$grpcPkg.CallOptions"
@@ -181,12 +182,12 @@ class GrpcServicePrinter(
       val handler = s"${defs.ServerCallHandlers}.${handleMethod(method)}[$inType, $outType]"
 
       p.add(
-        s".addMethod($descriptor, $handler(impl.${method.name}))"
+        s".addMethod($descriptor, $handler(impl.${method.name}, options))"
       )
     }
 
     p.add(
-      s"def service(impl: $serviceNameMonix)(implicit scheduler: ${defs.Scheduler}): ${defs.ServerServiceDefinition} = {"
+      s"def service(impl: $serviceNameMonix, options: ${defs.ServerCallOptions} = ${defs.ServerCallOptions}.default)(implicit scheduler: ${defs.Scheduler}): ${defs.ServerServiceDefinition} = {"
     ).indent
       .newline
       .newline
