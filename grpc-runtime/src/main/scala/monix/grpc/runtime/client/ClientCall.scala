@@ -194,10 +194,19 @@ class ClientCall[Request, Response] private[client] (
       case Right(_) => Task.raiseError(err)
     }
 
+  private def copy(origHeaders: grpc.Metadata): grpc.Metadata = {
+    val newHeaders = new grpc.Metadata()
+    newHeaders.merge(origHeaders)
+    newHeaders
+  }
+
+  /**
+   * Creates a copy of the headers, because call.start can mutate them.
+   */
   private def start(
       listener: grpc.ClientCall.Listener[Response],
       headers: grpc.Metadata
-  ): Task[Unit] = Task(call.start(listener, headers))
+  ): Task[Unit] = Task(call.start(listener, copy(headers)))
 
   /**
    * Asks for two messages even though we expect only one so that if a
